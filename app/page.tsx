@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -27,6 +25,7 @@ import {
   RefreshCw,
 } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 
 export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -34,13 +33,6 @@ export default function LandingPage() {
   const [htsUpdateVisible, setHtsUpdateVisible] = useState(false)
   const [htsOldRate, setHtsOldRate] = useState("1.2%")
   const [htsNewRate, setHtsNewRate] = useState("0.8%")
-
-  const [formData, setFormData] = useState({
-    name: "",
-    company: "",
-    email: "",
-    message: "",
-  })
 
   const [calculatorInputs, setCalculatorInputs] = useState({
     manualTime: 3,
@@ -108,13 +100,6 @@ export default function LandingPage() {
     }
   }, [])
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    console.log("Form submitted:", formData)
-    // Reset form
-    setFormData({ name: "", company: "", email: "", message: "" })
-  }
-
   return (
     <div className="min-h-screen bg-white">
       {/* Sticky Navigation */}
@@ -122,10 +107,13 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-teal-500 rounded-lg" />
-              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
-                SwiftDocks
-              </span>
+              <Image
+                src="/images/swiftdocks-logo.png"
+                alt="SwiftDocks"
+                width={180}
+                height={52}
+                className="h-14 w-auto"
+              />
             </Link>
 
             {/* Desktop Navigation */}
@@ -1014,8 +1002,13 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-teal-500 rounded-lg" />
-              <span className="text-xl font-bold text-white">SwiftDocks</span>
+              <Image
+                src="/images/swiftdocks-logo.png"
+                alt="SwiftDocks"
+                width={160}
+                height={46}
+                className="h-12 w-auto brightness-0 invert"
+              />
             </Link>
 
             <div className="flex gap-8">

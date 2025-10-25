@@ -7,7 +7,7 @@ import "./globals.css"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "ImportStation",
+  title: "SwiftDocks",
   description: "Generate customs paperwork, calculate duties, and ensure compliance — all in one platform.",
   generator: "v0.app",
 }

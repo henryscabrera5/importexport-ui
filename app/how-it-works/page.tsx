@@ -16,6 +16,7 @@ import {
   ChevronLeft,
 } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 
 export default function HowItWorksPage() {
   const [activeStep, setActiveStep] = useState(0)
@@ -86,10 +87,13 @@ export default function HowItWorksPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <Link href="/" className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-teal-500 rounded-lg" />
-              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
-                SwiftDocks
-              </span>
+              <Image
+                src="/images/swiftdocks-logo.png"
+                alt="SwiftDocks"
+                width={140}
+                height={40}
+                className="h-10 w-auto"
+              />
             </Link>
             <Link href="/">
               <Button variant="ghost" className="gap-2">
