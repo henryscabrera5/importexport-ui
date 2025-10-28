@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   title: "SwiftDocks",
   description: "Generate customs paperwork, calculate duties, and ensure compliance — all in one platform.",
   generator: "v0.app",
+  icons: {
+    icon: "/images/swiftdocks-logo.png",
+  },
 }
 
 export default function RootLayout({

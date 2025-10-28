@@ -19,7 +19,7 @@ export default function ContactPage() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center mb-6 animate-in fade-in slide-in-from-bottom duration-700">
           <div className="flex items-center justify-center mb-6">
-            <Image src="/images/swiftdocks-logo.png" alt="SwiftDocks" width={240} height={70} className="h-20 w-auto" />
+            <Image src="/images/swiftdocks-logo.png" alt="SwiftDocks" width={320} height={92} className="h-24 w-auto" />
           </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Join Our Beta</h1>
           <p className="text-xl text-gray-600">Be among the first to experience the future of global trade</p>

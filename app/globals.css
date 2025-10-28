@@ -122,4 +122,24 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Added smooth scroll behavior for better UX */
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Added custom animations for enhanced interactivity */
+@keyframes gradient {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient 15s ease infinite;
 }
