@@ -1428,7 +1428,6 @@ export default function LandingPage() {
           </h2>
           <p className="text-xl text-gray-600 mb-8">
             Join our beta program and be among the first to experience the future of global trade
-            operations@swiftdocks.com
           </p>
           <Link href="/contact">
             <Button
@@ -1458,7 +1457,6 @@ export default function LandingPage() {
 
             <div className="flex gap-8">
               <a href="#" className="text-gray-400 hover:text-white transition-all hover:scale-110">
-                Privacy Policy
                 operations@swiftdocks.com
               </a>
               <a href="#" className="text-gray-400 hover:text-white transition-all hover:scale-110">

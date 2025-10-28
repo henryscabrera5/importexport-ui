@@ -470,7 +470,6 @@ export default function HowItWorksPage() {
           </h2>
           <p className="text-xl mb-8 text-blue-100 animate-in fade-in slide-in-from-bottom duration-500 delay-150">
             Join our beta and experience the future of global trade
-            operations@swiftdocks.com
           </p>
           <Link href="/contact">
             <Button
