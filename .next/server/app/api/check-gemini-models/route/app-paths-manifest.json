@@ -1,0 +1,3 @@
+{
+  "/api/check-gemini-models/route": "app/api/check-gemini-models/route.js"
+}

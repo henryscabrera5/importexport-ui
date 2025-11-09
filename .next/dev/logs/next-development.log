@@ -1,0 +1,220 @@
+[00:00:02.962] Server  LOG      ✓ Ready in 1835ms
+[00:00:06.289] Server  LOG      ○ Compiling / ...
+[00:00:26.880] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:00:26.880] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/login","route":"/login"}
+[00:00:26.880] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/login color: rgb(120, 120, 120) color: inherit {"dp":"/login","o":"http://localhost:3000/login","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.5.0","sv":"0.1.3","ts":1762615214893}
+[00:00:40.325] Browser WARN    Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior
+[00:00:40.325] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.5.0","sv":"0.1.3","ts":1762615228339}
+[00:09:41.323] Server  LOG        Reload env: .env.local
+[00:11:15.095] Server  LOG      ✓ Compiled in 1238ms
+[00:11:20.676] Server  LOG      ✓ Compiled in 487ms
+[00:11:22.857] Server  LOG      ✓ Compiled in 209ms
+[00:11:25.749] Server  LOG      ✓ Compiled in 733ms
+[00:11:27.425] Server  LOG      ✓ Compiled in 355ms
+[00:11:28.459] Server  LOG      ✓ Compiled in 203ms
+[00:11:30.617] Server  LOG      ✓ Compiled in 327ms
+[00:11:32.732] Server  LOG      ✓ Compiled in 1129ms
+[00:11:39.950] Server  LOG      ✓ Compiled in 185ms
+[00:11:41.365] Server  LOG      ✓ Compiled in 240ms
+[00:12:03.612] Browser ERROR   uncaughtError: Error: An unknown Component is an async Client Component. Only Server Components can be async at the moment. This error is often caused by accidentally adding `'use client'` to a module that was originally written for the server.
+[00:13:08.485] Server  LOG      ✓ Compiled in 421ms
+[00:13:09.777] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.5.0","sv":"0.1.3","ts":1762654875346}
+[00:13:34.904] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:13:34.904] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:13:34.904] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.5.0","sv":"0.1.3","ts":1762654900865}
+[00:14:04.231] Server  WARN    GEMINI_API_KEY is not set. Document processing will not work.
+[00:14:04.392] Browser ERROR   Error processing files: {}
+[00:14:20.813] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:14:20.814] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:14:20.814] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.5.0","sv":"0.1.3","ts":1762654946768}
+[00:14:43.263] Server  LOG      ✓ Compiled in 412ms
+[00:14:52.839] Server  LOG        Reload env: .env.local
+[00:15:31.232] Server  LOG        Reload env: .env.local
+[00:15:51.422] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:15:51.422] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:15:51.422] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.5.0","sv":"0.1.3","ts":1762655037382}
+[00:17:09.858] Server  LOG      ✓ Compiled in 967ms
+[00:17:28.640] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:17:28.640] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:17:28.640] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.5.0","sv":"0.1.3","ts":1762655134543}
+[00:20:27.990] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:20:27.990] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:20:27.990] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.5.0","sv":"0.1.3","ts":1762655313944}
+[00:21:48.244] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:21:48.244] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:21:48.244] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.5.0","sv":"0.1.3","ts":1762655394156}
+[00:22:56.572] Server  LOG      ✓ Compiled in 263ms
+[00:23:36.149] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:23:36.149] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:23:36.149] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.5.0","sv":"0.1.3","ts":1762655502175}
+[00:24:35.505] Server  LOG      ✓ Compiled in 461ms
+[00:24:37.115] Server  LOG      ✓ Compiled in 183ms
+[00:25:04.247] Server  LOG      ✓ Compiled in 910ms
+[00:25:12.310] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:25:12.310] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:25:12.310] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","r":"","sdkn":"@vercel/analytics/next","sdkv":"1.5.0","sv":"0.1.3","ts":1762655598227}
+[00:25:22.725] Browser LOG     🔘 Button clicked! Opening HTS selector for: BAR STOOL ALUMINIUM
+500 X 100 X 100MM
+STAINLESS STEEL
+[00:25:22.725] Browser LOG     🔘 Doc index: 0 Product index: 0
+[00:25:22.725] Browser LOG     🔘 HTS selector state set to open
+[00:25:57.341] Server  LOG      ✓ Compiled in 335ms
+[00:25:59.476] Server  LOG      ✓ Compiled in 393ms
+[00:26:00.242] Browser LOG     🎯 HtsCodeSelector rendered, open: true itemDescription: BAR STOOL ALUMINIUM
+500 X 100 X 100MM
+STAINLESS STEEL
+[00:26:00.242] Browser LOG     🎯 HtsCodeSelector rendered, open: true itemDescription: BAR STOOL ALUMINIUM
+500 X 100 X 100MM
+STAINLESS STEEL
+[00:26:00.242] Browser ERROR   uncaughtError: ReferenceError: Can't find variable: useEffect
+[00:26:04.592] Server  WARN     ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[00:26:04.614] Server  LOG      ✓ Compiled in 791ms
+[00:26:05.229] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.5.0","sv":"0.1.3","ts":1762655651015}
+[00:26:05.988] Browser ERROR   {}
+[00:26:07.184] Server  LOG      ✓ Compiled in 208ms
+[00:26:08.890] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:26:08.890] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:26:08.890] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.5.0","sv":"0.1.3","ts":1762655654911}
+[00:27:59.104] Server  LOG     ================================================================================
+[00:27:59.124] Server  LOG     🚀 API ROUTE HIT: /api/lookup-hts-codes
+[00:27:59.124] Server  LOG     ================================================================================
+[00:27:59.131] Server  LOG     📥 API Route: Received lookup request for: "test bar stool"
+[00:27:59.135] Server  LOG     📥 API Route: Request body: "{\n  \"description\": \"test bar stool\"\n}"
+[00:27:59.136] Server  LOG     ✅ API Route: API key is configured
+[00:27:59.136] Server  LOG     🔍 API Route: Calling lookupHtsCodes with description: "test bar stool"
+[00:27:59.148] Server  LOG     Original description: "test bar stool"
+[00:27:59.149] Server  LOG     Extracted search terms: "test bar stool"
+[00:27:59.152] Server  LOG     USITC API Query structure: "{\n  \"savedQueryName\": \"\",\n  \"savedQueryDesc\": \"\",\n  \"isOwner\": true,\n  \"runMonthly\": false,\n  \"reportOptions\": {\n    \"tradeType\": \"Import\",\n    \"classificationSystem\": \"HTS\"\n  },\n  \"searchOptions\": {\n    \"MiscGroup\": {\n      \"districts\": {\n        \"aggregation\": \"Aggregate District\",\n        \"districtGroups\": {\n          \"userGroups\": []\n        },\n        \"districts\": [],\n        \"districtsExpanded\": [\n          {\n            \"name\": \"All Districts\",\n            \"value\": \"all\"\n          }\n        ],\n        \"districtsSelectType\": \"all\"\n      },\n      \"importPrograms\": {\n        \"aggregation\": null,\n        \"importPrograms\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"extImportPrograms\": {\n        \"aggregation\": \"Aggregate CSC\",\n        \"extImportPrograms\": [],\n        \"extImportProgramsExpanded\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"provisionCodes\": {\n        \"aggregation\": \"Aggregate RPCODE\",\n        \"provisionCodesSelectType\": \"all\",\n        \"rateProvi"
+[00:27:59.153] Server  LOG     Calling USITC API...
+[00:27:59.739] Server  LOG     USITC API Response OK, parsing JSON...
+[00:27:59.745] Server  LOG     USITC API Response status: 200
+[00:27:59.751] Server  LOG     USITC API Response keys: ["dto"]
+[00:27:59.752] Server  LOG     USITC API Full Response: "{\n  \"dto\": {\n    \"title\": null,\n    \"subtitle\": null,\n    \"tables\": [],\n    \"errors\": [\n      \"There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available.\"\n    ],\n    \"complexityThreshold\": false,\n    \"problemSql\": null,\n    \"needMoreTime\": null,\n    \"isOwner\": null,\n    \"htsChanges\": {\n      \"changes\": null,\n      \"validTimeSeriesNums\": null,\n      \"validTimeSeries\": null,\n      \"isValid\": null\n    },\n    \"hts2Selections\": []\n  }\n}"
+[00:27:59.754] Server  LOG     Extracted HTS codes count: 0
+[00:27:59.759] Server  LOG     ✅ API Route: Lookup completed, found 0 "codes"
+[00:27:59.760] Server  LOG     📤 API Route: Returning response with 0 "HTS codes"
+[00:28:22.966] Server  LOG     ================================================================================
+[00:28:22.966] Server  LOG     🧪 TEST ENDPOINT: Testing HTS lookup for: "bar stool"
+[00:28:22.967] Server  LOG     ================================================================================
+[00:28:22.968] Server  LOG     Original description: "bar stool"
+[00:28:22.968] Server  LOG     Extracted search terms: "bar stool"
+[00:28:22.969] Server  LOG     USITC API Query structure: "{\n  \"savedQueryName\": \"\",\n  \"savedQueryDesc\": \"\",\n  \"isOwner\": true,\n  \"runMonthly\": false,\n  \"reportOptions\": {\n    \"tradeType\": \"Import\",\n    \"classificationSystem\": \"HTS\"\n  },\n  \"searchOptions\": {\n    \"MiscGroup\": {\n      \"districts\": {\n        \"aggregation\": \"Aggregate District\",\n        \"districtGroups\": {\n          \"userGroups\": []\n        },\n        \"districts\": [],\n        \"districtsExpanded\": [\n          {\n            \"name\": \"All Districts\",\n            \"value\": \"all\"\n          }\n        ],\n        \"districtsSelectType\": \"all\"\n      },\n      \"importPrograms\": {\n        \"aggregation\": null,\n        \"importPrograms\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"extImportPrograms\": {\n        \"aggregation\": \"Aggregate CSC\",\n        \"extImportPrograms\": [],\n        \"extImportProgramsExpanded\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"provisionCodes\": {\n        \"aggregation\": \"Aggregate RPCODE\",\n        \"provisionCodesSelectType\": \"all\",\n        \"rateProvi"
+[00:28:22.969] Server  LOG     Calling USITC API...
+[00:28:23.337] Server  LOG     USITC API Response OK, parsing JSON...
+[00:28:23.348] Server  LOG     USITC API Response status: 200
+[00:28:23.349] Server  LOG     USITC API Response keys: ["dto"]
+[00:28:23.349] Server  LOG     USITC API Full Response: "{\n  \"dto\": {\n    \"title\": null,\n    \"subtitle\": null,\n    \"tables\": [],\n    \"errors\": [\n      \"There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available.\"\n    ],\n    \"complexityThreshold\": false,\n    \"problemSql\": null,\n    \"needMoreTime\": null,\n    \"isOwner\": null,\n    \"htsChanges\": {\n      \"changes\": null,\n      \"validTimeSeriesNums\": null,\n      \"validTimeSeries\": null,\n      \"isValid\": null\n    },\n    \"hts2Selections\": []\n  }\n}"
+[00:28:23.351] Server  LOG     Extracted HTS codes count: 0
+[00:28:29.532] Server  LOG     ================================================================================
+[00:28:29.532] Server  LOG     🧪 TEST ENDPOINT: Testing HTS lookup for: "bar stool"
+[00:28:29.533] Server  LOG     ================================================================================
+[00:28:29.534] Server  LOG     Original description: "bar stool"
+[00:28:29.534] Server  LOG     Extracted search terms: "bar stool"
+[00:28:29.535] Server  LOG     USITC API Query structure: "{\n  \"savedQueryName\": \"\",\n  \"savedQueryDesc\": \"\",\n  \"isOwner\": true,\n  \"runMonthly\": false,\n  \"reportOptions\": {\n    \"tradeType\": \"Import\",\n    \"classificationSystem\": \"HTS\"\n  },\n  \"searchOptions\": {\n    \"MiscGroup\": {\n      \"districts\": {\n        \"aggregation\": \"Aggregate District\",\n        \"districtGroups\": {\n          \"userGroups\": []\n        },\n        \"districts\": [],\n        \"districtsExpanded\": [\n          {\n            \"name\": \"All Districts\",\n            \"value\": \"all\"\n          }\n        ],\n        \"districtsSelectType\": \"all\"\n      },\n      \"importPrograms\": {\n        \"aggregation\": null,\n        \"importPrograms\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"extImportPrograms\": {\n        \"aggregation\": \"Aggregate CSC\",\n        \"extImportPrograms\": [],\n        \"extImportProgramsExpanded\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"provisionCodes\": {\n        \"aggregation\": \"Aggregate RPCODE\",\n        \"provisionCodesSelectType\": \"all\",\n        \"rateProvi"
+[00:28:29.536] Server  LOG     Calling USITC API...
+[00:28:29.881] Server  LOG     USITC API Response OK, parsing JSON...
+[00:28:29.882] Server  LOG     USITC API Response status: 200
+[00:28:29.883] Server  LOG     USITC API Response keys: ["dto"]
+[00:28:29.884] Server  LOG     USITC API Full Response: "{\n  \"dto\": {\n    \"title\": null,\n    \"subtitle\": null,\n    \"tables\": [],\n    \"errors\": [\n      \"There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available.\"\n    ],\n    \"complexityThreshold\": false,\n    \"problemSql\": null,\n    \"needMoreTime\": null,\n    \"isOwner\": null,\n    \"htsChanges\": {\n      \"changes\": null,\n      \"validTimeSeriesNums\": null,\n      \"validTimeSeries\": null,\n      \"isValid\": null\n    },\n    \"hts2Selections\": []\n  }\n}"
+[00:28:29.885] Server  LOG     Extracted HTS codes count: 0
+[00:28:29.885] Server  LOG     ⚠️ No HTS codes extracted from response
+[00:28:29.886] Server  LOG     ⚠️ Response structure: {}
+[00:28:43.983] Server  LOG     ================================================================================
+[00:28:43.984] Server  LOG     🧪 TEST ENDPOINT: Testing HTS lookup for: "bar stool"
+[00:28:43.985] Server  LOG     ================================================================================
+[00:28:43.987] Server  LOG     Original description: "bar stool"
+[00:28:43.988] Server  LOG     Extracted search terms: "bar stool"
+[00:28:43.989] Server  LOG     USITC API Query structure: "{\n  \"savedQueryName\": \"\",\n  \"savedQueryDesc\": \"\",\n  \"isOwner\": true,\n  \"runMonthly\": false,\n  \"reportOptions\": {\n    \"tradeType\": \"Import\",\n    \"classificationSystem\": \"HTS\"\n  },\n  \"searchOptions\": {\n    \"MiscGroup\": {\n      \"districts\": {\n        \"aggregation\": \"Aggregate District\",\n        \"districtGroups\": {\n          \"userGroups\": []\n        },\n        \"districts\": [],\n        \"districtsExpanded\": [\n          {\n            \"name\": \"All Districts\",\n            \"value\": \"all\"\n          }\n        ],\n        \"districtsSelectType\": \"all\"\n      },\n      \"importPrograms\": {\n        \"aggregation\": null,\n        \"importPrograms\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"extImportPrograms\": {\n        \"aggregation\": \"Aggregate CSC\",\n        \"extImportPrograms\": [],\n        \"extImportProgramsExpanded\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"provisionCodes\": {\n        \"aggregation\": \"Aggregate RPCODE\",\n        \"provisionCodesSelectType\": \"all\",\n        \"rateProvi"
+[00:28:43.989] Server  LOG     Calling USITC API...
+[00:28:44.715] Server  LOG     USITC API Response OK, parsing JSON...
+[00:28:44.716] Server  LOG     USITC API Response status: 200
+[00:28:44.717] Server  LOG     USITC API Response keys: ["dto"]
+[00:28:44.717] Server  LOG     USITC API Full Response: "{\n  \"dto\": {\n    \"title\": null,\n    \"subtitle\": null,\n    \"tables\": [],\n    \"errors\": [\n      \"There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available.\"\n    ],\n    \"complexityThreshold\": false,\n    \"problemSql\": null,\n    \"needMoreTime\": null,\n    \"isOwner\": null,\n    \"htsChanges\": {\n      \"changes\": null,\n      \"validTimeSeriesNums\": null,\n      \"validTimeSeries\": null,\n      \"isValid\": null\n    },\n    \"hts2Selections\": []\n  }\n}"
+[00:28:44.718] Server  LOG     Extracted HTS codes count: 0
+[00:28:44.718] Server  LOG     ⚠️ No HTS codes extracted from response
+[00:28:44.720] Server  LOG     ⚠️ Response structure: {}
+[00:28:46.694] Server  LOG     ================================================================================
+[00:28:46.694] Server  LOG     🧪 TEST ENDPOINT: Testing HTS lookup for: "bar stool"
+[00:28:46.694] Server  LOG     ================================================================================
+[00:28:46.695] Server  LOG     Original description: "bar stool"
+[00:28:46.695] Server  LOG     Extracted search terms: "bar stool"
+[00:28:46.695] Server  LOG     USITC API Query structure: "{\n  \"savedQueryName\": \"\",\n  \"savedQueryDesc\": \"\",\n  \"isOwner\": true,\n  \"runMonthly\": false,\n  \"reportOptions\": {\n    \"tradeType\": \"Import\",\n    \"classificationSystem\": \"HTS\"\n  },\n  \"searchOptions\": {\n    \"MiscGroup\": {\n      \"districts\": {\n        \"aggregation\": \"Aggregate District\",\n        \"districtGroups\": {\n          \"userGroups\": []\n        },\n        \"districts\": [],\n        \"districtsExpanded\": [\n          {\n            \"name\": \"All Districts\",\n            \"value\": \"all\"\n          }\n        ],\n        \"districtsSelectType\": \"all\"\n      },\n      \"importPrograms\": {\n        \"aggregation\": null,\n        \"importPrograms\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"extImportPrograms\": {\n        \"aggregation\": \"Aggregate CSC\",\n        \"extImportPrograms\": [],\n        \"extImportProgramsExpanded\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"provisionCodes\": {\n        \"aggregation\": \"Aggregate RPCODE\",\n        \"provisionCodesSelectType\": \"all\",\n        \"rateProvi"
+[00:28:46.696] Server  LOG     Calling USITC API...
+[00:28:46.873] Server  LOG     USITC API Response OK, parsing JSON...
+[00:28:46.874] Server  LOG     USITC API Response status: 200
+[00:28:46.875] Server  LOG     USITC API Response keys: ["dto"]
+[00:28:46.876] Server  LOG     USITC API Full Response: "{\n  \"dto\": {\n    \"title\": null,\n    \"subtitle\": null,\n    \"tables\": [],\n    \"errors\": [\n      \"There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available.\"\n    ],\n    \"complexityThreshold\": false,\n    \"problemSql\": null,\n    \"needMoreTime\": null,\n    \"isOwner\": null,\n    \"htsChanges\": {\n      \"changes\": null,\n      \"validTimeSeriesNums\": null,\n      \"validTimeSeries\": null,\n      \"isValid\": null\n    },\n    \"hts2Selections\": []\n  }\n}"
+[00:28:46.877] Server  LOG     Extracted HTS codes count: 0
+[00:28:46.877] Server  LOG     ⚠️ No HTS codes extracted from response
+[00:28:46.878] Server  LOG     ⚠️ Response structure: {}
+[00:29:08.879] Server  LOG     ================================================================================
+[00:29:08.880] Server  LOG     🧪 TEST ENDPOINT: Testing HTS lookup for: "bar stool"
+[00:29:08.880] Server  LOG     ================================================================================
+[00:29:08.881] Server  LOG     Original description: "bar stool"
+[00:29:08.881] Server  LOG     Extracted search terms: "bar stool"
+[00:29:08.882] Server  LOG     USITC API Query structure: "{\n  \"savedQueryName\": \"\",\n  \"savedQueryDesc\": \"\",\n  \"isOwner\": true,\n  \"runMonthly\": false,\n  \"reportOptions\": {\n    \"tradeType\": \"Import\",\n    \"classificationSystem\": \"HTS\"\n  },\n  \"searchOptions\": {\n    \"MiscGroup\": {\n      \"districts\": {\n        \"aggregation\": \"Aggregate District\",\n        \"districtGroups\": {\n          \"userGroups\": []\n        },\n        \"districts\": [],\n        \"districtsExpanded\": [\n          {\n            \"name\": \"All Districts\",\n            \"value\": \"all\"\n          }\n        ],\n        \"districtsSelectType\": \"all\"\n      },\n      \"importPrograms\": {\n        \"aggregation\": null,\n        \"importPrograms\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"extImportPrograms\": {\n        \"aggregation\": \"Aggregate CSC\",\n        \"extImportPrograms\": [],\n        \"extImportProgramsExpanded\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"provisionCodes\": {\n        \"aggregation\": \"Aggregate RPCODE\",\n        \"provisionCodesSelectType\": \"all\",\n        \"rateProvi"
+[00:29:08.882] Server  LOG     Calling USITC API...
+[00:29:09.413] Server  LOG     USITC API Response OK, parsing JSON...
+[00:29:09.415] Server  ERROR   USITC API Validation Error: "There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available."
+[00:29:09.835] Server  ERROR   Error looking up HTS codes: Error: USITC API validation error: There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available.
+[00:29:10.017] Server  ERROR   🧪 TEST ENDPOINT ERROR: Error: USITC API validation error: There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available.
+[00:29:18.534] Server  LOG     ================================================================================
+[00:29:18.535] Server  LOG     🧪 TEST ENDPOINT: Testing HTS lookup for: "furniture"
+[00:29:18.535] Server  LOG     ================================================================================
+[00:29:18.536] Server  LOG     Original description: "furniture"
+[00:29:18.537] Server  LOG     Extracted search terms: "furniture"
+[00:29:18.537] Server  LOG     USITC API Query structure: "{\n  \"savedQueryName\": \"\",\n  \"savedQueryDesc\": \"\",\n  \"isOwner\": true,\n  \"runMonthly\": false,\n  \"reportOptions\": {\n    \"tradeType\": \"Import\",\n    \"classificationSystem\": \"HTS\"\n  },\n  \"searchOptions\": {\n    \"MiscGroup\": {\n      \"districts\": {\n        \"aggregation\": \"Aggregate District\",\n        \"districtGroups\": {\n          \"userGroups\": []\n        },\n        \"districts\": [],\n        \"districtsExpanded\": [\n          {\n            \"name\": \"All Districts\",\n            \"value\": \"all\"\n          }\n        ],\n        \"districtsSelectType\": \"all\"\n      },\n      \"importPrograms\": {\n        \"aggregation\": null,\n        \"importPrograms\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"extImportPrograms\": {\n        \"aggregation\": \"Aggregate CSC\",\n        \"extImportPrograms\": [],\n        \"extImportProgramsExpanded\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"provisionCodes\": {\n        \"aggregation\": \"Aggregate RPCODE\",\n        \"provisionCodesSelectType\": \"all\",\n        \"rateProvi"
+[00:29:18.537] Server  LOG     Calling USITC API...
+[00:29:18.846] Server  LOG     USITC API Response OK, parsing JSON...
+[00:29:18.848] Server  ERROR   USITC API Validation Error: "There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available."
+[00:29:19.038] Server  ERROR   Error looking up HTS codes: Error: USITC API validation error: There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available.
+[00:29:19.158] Server  ERROR   🧪 TEST ENDPOINT ERROR: Error: USITC API validation error: There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available.
+[00:31:35.997] Server  LOG     ================================================================================
+[00:31:36.002] Server  LOG     🧪 TEST ENDPOINT: Testing HTS lookup for: "chair"
+[00:31:36.003] Server  LOG     ================================================================================
+[00:31:36.004] Server  LOG     Original description: "chair"
+[00:31:36.005] Server  LOG     Extracted search terms: "chair"
+[00:31:36.006] Server  LOG     USITC API Query structure: "{\n  \"savedQueryName\": \"\",\n  \"savedQueryDesc\": \"\",\n  \"isOwner\": true,\n  \"runMonthly\": false,\n  \"reportOptions\": {\n    \"tradeType\": \"Import\",\n    \"classificationSystem\": \"HTS\"\n  },\n  \"searchOptions\": {\n    \"MiscGroup\": {\n      \"districts\": {\n        \"aggregation\": \"Aggregate District\",\n        \"districtGroups\": {\n          \"userGroups\": []\n        },\n        \"districts\": [],\n        \"districtsExpanded\": [\n          {\n            \"name\": \"All Districts\",\n            \"value\": \"all\"\n          }\n        ],\n        \"districtsSelectType\": \"all\"\n      },\n      \"importPrograms\": {\n        \"aggregation\": null,\n        \"importPrograms\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"extImportPrograms\": {\n        \"aggregation\": \"Aggregate CSC\",\n        \"extImportPrograms\": [],\n        \"extImportProgramsExpanded\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"provisionCodes\": {\n        \"aggregation\": \"Aggregate RPCODE\",\n        \"provisionCodesSelectType\": \"all\",\n        \"rateProvi"
+[00:31:36.007] Server  LOG     Calling USITC API...
+[00:31:36.469] Server  LOG     USITC API Response OK, parsing JSON...
+[00:31:36.473] Server  ERROR   USITC API Validation Error: "There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available."
+[00:31:36.679] Server  ERROR   Error looking up HTS codes: Error: USITC API validation error: There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available.
+[00:31:36.898] Server  ERROR   🧪 TEST ENDPOINT ERROR: Error: USITC API validation error: There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available.
+[00:32:04.376] Server  LOG     ================================================================================
+[00:32:04.376] Server  LOG     🧪 TEST ENDPOINT: Testing HTS lookup for: "chair"
+[00:32:04.377] Server  LOG     ================================================================================
+[00:32:04.378] Server  LOG     Original description: "chair"
+[00:32:04.378] Server  LOG     Extracted search terms: "chair"
+[00:32:04.379] Server  LOG     USITC API Query structure: "{\n  \"savedQueryName\": \"\",\n  \"savedQueryDesc\": \"\",\n  \"isOwner\": true,\n  \"runMonthly\": false,\n  \"reportOptions\": {\n    \"tradeType\": \"Import\",\n    \"classificationSystem\": \"HTS\"\n  },\n  \"searchOptions\": {\n    \"MiscGroup\": {\n      \"districts\": {\n        \"aggregation\": \"Aggregate District\",\n        \"districtGroups\": {\n          \"userGroups\": []\n        },\n        \"districts\": [],\n        \"districtsExpanded\": [\n          {\n            \"name\": \"All Districts\",\n            \"value\": \"all\"\n          }\n        ],\n        \"districtsSelectType\": \"all\"\n      },\n      \"importPrograms\": {\n        \"aggregation\": null,\n        \"importPrograms\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"extImportPrograms\": {\n        \"aggregation\": \"Aggregate CSC\",\n        \"extImportPrograms\": [],\n        \"extImportProgramsExpanded\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"provisionCodes\": {\n        \"aggregation\": \"Aggregate RPCODE\",\n        \"provisionCodesSelectType\": \"all\",\n        \"rateProvi"
+[00:32:04.379] Server  LOG     Calling USITC API...
+[00:32:04.808] Server  LOG     USITC API Response OK, parsing JSON...
+[00:32:04.810] Server  ERROR   USITC API Validation Error: "There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available."
+[00:32:05.029] Server  ERROR   Error looking up HTS codes: Error: USITC API validation error: There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available.
+[00:32:05.157] Server  ERROR   🧪 TEST ENDPOINT ERROR: Error: USITC API validation error: There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available.
+[00:33:23.503] Server  LOG     ================================================================================
+[00:33:23.505] Server  LOG     🧪 TEST ENDPOINT: Testing HTS lookup for: "chair"
+[00:33:23.505] Server  LOG     ================================================================================
+[00:33:23.506] Server  LOG     Original description: "chair"
+[00:33:23.507] Server  LOG     Extracted search terms: "chair"
+[00:33:23.509] Server  LOG     USITC API Query structure: "{\n  \"savedQueryName\": \"\",\n  \"savedQueryDesc\": \"\",\n  \"isOwner\": true,\n  \"runMonthly\": false,\n  \"reportOptions\": {\n    \"tradeType\": \"Import\",\n    \"classificationSystem\": \"HTS\"\n  },\n  \"searchOptions\": {\n    \"MiscGroup\": {\n      \"districts\": {\n        \"aggregation\": \"Aggregate District\",\n        \"districtGroups\": {\n          \"userGroups\": []\n        },\n        \"districts\": [],\n        \"districtsExpanded\": [\n          {\n            \"name\": \"All Districts\",\n            \"value\": \"all\"\n          }\n        ],\n        \"districtsSelectType\": \"all\"\n      },\n      \"importPrograms\": {\n        \"aggregation\": null,\n        \"importPrograms\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"extImportPrograms\": {\n        \"aggregation\": \"Aggregate CSC\",\n        \"extImportPrograms\": [],\n        \"extImportProgramsExpanded\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"provisionCodes\": {\n        \"aggregation\": \"Aggregate RPCODE\",\n        \"provisionCodesSelectType\": \"all\",\n        \"rateProvi"
+[00:33:23.509] Server  LOG     Calling USITC API...
+[00:33:24.326] Server  LOG     USITC API Response OK, parsing JSON...
+[00:33:24.329] Server  ERROR   USITC API Validation Error: "There was an issue validating your query in step 4. You have chosen to select commodities manually.  You must add at least one commodity to the list."
+[00:33:24.595] Server  ERROR   Error looking up HTS codes: Error: USITC API validation error: There was an issue validating your query in step 4. You have chosen to select commodities manually.  You must add at least one commodity to the list.
+[00:33:24.723] Server  ERROR   🧪 TEST ENDPOINT ERROR: Error: USITC API validation error: There was an issue validating your query in step 4. You have chosen to select commodities manually.  You must add at least one commodity to the list.
+[00:33:41.269] Server  LOG     ================================================================================
+[00:33:41.270] Server  LOG     🧪 TEST ENDPOINT: Testing HTS lookup for: "chair"
+[00:33:41.272] Server  LOG     ================================================================================
+[00:33:41.277] Server  LOG     Original description: "chair"
+[00:33:41.277] Server  LOG     Extracted search terms: "chair"
+[00:33:41.707] Server  LOG     Commodity search results via GET: 0
+[00:33:41.710] Server  LOG     USITC API Query structure: "{\n  \"savedQueryName\": \"\",\n  \"savedQueryDesc\": \"\",\n  \"isOwner\": true,\n  \"runMonthly\": false,\n  \"reportOptions\": {\n    \"tradeType\": \"Import\",\n    \"classificationSystem\": \"HTS\"\n  },\n  \"searchOptions\": {\n    \"MiscGroup\": {\n      \"districts\": {\n        \"aggregation\": \"Aggregate District\",\n        \"districtGroups\": {\n          \"userGroups\": []\n        },\n        \"districts\": [],\n        \"districtsExpanded\": [\n          {\n            \"name\": \"All Districts\",\n            \"value\": \"all\"\n          }\n        ],\n        \"districtsSelectType\": \"all\"\n      },\n      \"importPrograms\": {\n        \"aggregation\": null,\n        \"importPrograms\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"extImportPrograms\": {\n        \"aggregation\": \"Aggregate CSC\",\n        \"extImportPrograms\": [],\n        \"extImportProgramsExpanded\": [],\n        \"programsSelectType\": \"all\"\n      },\n      \"provisionCodes\": {\n        \"aggregation\": \"Aggregate RPCODE\",\n        \"provisionCodesSelectType\": \"all\",\n        \"rateProvi"
+[00:33:41.711] Server  LOG     Calling USITC API...
+[00:33:42.009] Server  LOG     USITC API Response OK, parsing JSON...
+[00:33:42.010] Server  ERROR   USITC API Validation Error: "There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available."
+[00:33:42.222] Server  ERROR   Error looking up HTS codes: Error: USITC API validation error: There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available.
+[00:33:42.337] Server  ERROR   🧪 TEST ENDPOINT ERROR: Error: USITC API validation error: There was an issue validating your query in step 4. Your current tab selection is not allowed and/or not available.
+[00:36:41.864] Server  LOG      ✓ Compiled in 2.3s
+[00:50:12.459] Browser LOG     %c[Vercel Web Analytics]%c Debug mode is enabled by default in development. No requests will be sent to the server. color: rgb(120, 120, 120) color: inherit
+[00:50:12.459] Browser LOG     %c[Vercel Web Analytics]%c Running queued event color: rgb(120, 120, 120) color: inherit pageview {"path":"/dashboard","route":"/dashboard"}
+[00:50:12.459] Browser LOG     %c[Vercel Web Analytics]%c [pageview] http://localhost:3000/dashboard color: rgb(120, 120, 120) color: inherit {"dp":"/dashboard","o":"http://localhost:3000/dashboard","sdkn":"@vercel/analytics/next","sdkv":"1.5.0","sv":"0.1.3","ts":1762657098500}

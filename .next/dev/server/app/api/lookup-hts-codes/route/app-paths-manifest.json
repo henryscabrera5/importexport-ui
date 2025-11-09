@@ -1,0 +1,3 @@
+{
+  "/api/lookup-hts-codes/route": "app/api/lookup-hts-codes/route.js"
+}

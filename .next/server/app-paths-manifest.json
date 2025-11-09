@@ -1,0 +1,14 @@
+{
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/check-gemini-models/route": "app/api/check-gemini-models/route.js",
+  "/api/get-latest-documents/route": "app/api/get-latest-documents/route.js",
+  "/api/process-documents/route": "app/api/process-documents/route.js",
+  "/benefits/page": "app/benefits/page.js",
+  "/contact/page": "app/contact/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/how-it-works/page": "app/how-it-works/page.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js",
+  "/signup/page": "app/signup/page.js"
+}

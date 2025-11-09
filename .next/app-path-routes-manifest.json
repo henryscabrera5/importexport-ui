@@ -1,0 +1,14 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/api/check-gemini-models/route": "/api/check-gemini-models",
+  "/api/get-latest-documents/route": "/api/get-latest-documents",
+  "/api/process-documents/route": "/api/process-documents",
+  "/benefits/page": "/benefits",
+  "/contact/page": "/contact",
+  "/dashboard/page": "/dashboard",
+  "/how-it-works/page": "/how-it-works",
+  "/login/page": "/login",
+  "/page": "/",
+  "/signup/page": "/signup"
+}
