@@ -326,6 +326,11 @@ export default function LandingPage() {
               <a href="#about" className="text-gray-600 hover:text-gray-900 transition-all hover:scale-105">
                 About
               </a>
+              <Link href="/login">
+                <Button variant="outline" className="hover:scale-105 transition-all">
+                  Log In
+                </Button>
+              </Link>
               <Link href="/contact">
                 <Button className="bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 hover:scale-105 transition-all">
                   Join Beta
@@ -351,6 +356,9 @@ export default function LandingPage() {
               <a href="#about" className="block text-gray-600 hover:text-gray-900">
                 About
               </a>
+              <Link href="/login">
+                <Button variant="outline" className="w-full">Log In</Button>
+              </Link>
               <Link href="/contact">
                 <Button className="w-full bg-gradient-to-r from-blue-600 to-teal-600">Join Beta</Button>
               </Link>
