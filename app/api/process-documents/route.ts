@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     // Get the Gemini model
     // NOTE: Default/free tier API keys typically only have access to gemini-2.0-flash-exp
     // Check available models at /api/check-gemini-models if you need to verify
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" })
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" })
 
     // First pass: Understand the document structure
     // NOTE: This understanding prompt may be adjusted based on document analysis needs
