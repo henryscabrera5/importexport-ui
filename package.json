@@ -6,7 +6,11 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "eslint .",
-    "start": "next start"
+    "start": "next start",
+    "import-hts": "tsx scripts/import-hts-codes.ts",
+    "generate-hts-sql": "tsx scripts/generate-hts-sql.ts",
+    "generate-hts-csv": "tsx scripts/generate-hts-csv.ts",
+    "create-hts-table": "tsx scripts/create-hts-codes-table.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -45,6 +49,7 @@
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
     "date-fns": "4.1.0",
+    "dotenv": "^17.2.3",
     "embla-carousel-react": "8.5.1",
     "input-otp": "1.4.1",
     "lucide-react": "^0.454.0",
@@ -63,12 +68,14 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@next/swc-darwin-arm64": "^16.0.3",
     "@tailwindcss/postcss": "^4.1.9",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
+    "tsx": "^4.20.6",
     "tw-animate-css": "1.3.3",
     "typescript": "^5"
   }

@@ -48,7 +48,31 @@ export default function SignUpPage() {
     setIsLoading(true)
 
     try {
-      // Sign up with Supabase Auth
+      // First, check if the email domain is approved
+      const response = await fetch('/api/check-email-domain', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: formData.email }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to validate email domain')
+        setIsLoading(false)
+        return
+      }
+
+      const domainCheck = await response.json()
+
+      if (!domainCheck.approved) {
+        setError(domainCheck.message || 'Your email domain is not approved. Please contact support to request access.')
+        setIsLoading(false)
+        return
+      }
+
+      // Domain is approved, proceed with signup
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,

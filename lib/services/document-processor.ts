@@ -94,8 +94,27 @@ export async function processDocumentWithGemini(
   })
 
   if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || "Failed to process document")
+    let errorMessage = "Failed to process document"
+    let errorDetails: any = null
+    
+    try {
+      const errorText = await response.text()
+      console.error("API Error Response (raw):", errorText)
+      
+      try {
+        errorDetails = JSON.parse(errorText)
+        errorMessage = errorDetails.message || errorDetails.error || errorMessage
+        console.error("API Error Response (parsed):", errorDetails)
+      } catch (parseError) {
+        // If it's not JSON, use the text as the error message
+        errorMessage = errorText || errorMessage
+      }
+    } catch (textError) {
+      console.error("Failed to read error response:", textError)
+      errorMessage = `HTTP ${response.status}: ${response.statusText}`
+    }
+    
+    throw new Error(errorMessage)
   }
 
   const result = await response.json()

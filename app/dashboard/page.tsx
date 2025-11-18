@@ -842,6 +842,9 @@ export default function DashboardPage() {
                             {allProducts.some((p) => p.dimensions || p.length) && (
                               <TableHead className="font-semibold">Dimensions</TableHead>
                             )}
+                              {allProducts.some((p) => p.dutyCalculation || p.htsCode) && (
+                                <TableHead className="font-semibold">Duty Calculation</TableHead>
+                              )}
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -900,6 +903,55 @@ export default function DashboardPage() {
                                     : product.length && product.width && product.height
                                       ? `${product.length}×${product.width}×${product.height} ${product.dimensionUnit || "cm"}`
                                       : "-"}
+                                </TableCell>
+                              )}
+                              {allProducts.some((p) => p.dutyCalculation || p.htsCode) && (
+                                <TableCell>
+                                  {product.dutyCalculation ? (
+                                    <div className="space-y-1">
+                                      {product.dutyCalculation.isDutyFree ? (
+                                        <div className="flex items-center gap-2">
+                                          <CheckCircle className="h-4 w-4 text-green-600" />
+                                          <span className="font-semibold text-green-600">No Duty (Free)</span>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <div className="font-semibold text-red-600">
+                                            {product.dutyCalculation.currency || "USD"} {product.dutyCalculation.calculatedDuty?.toLocaleString(undefined, {
+                                              minimumFractionDigits: 2,
+                                              maximumFractionDigits: 2,
+                                            }) || "0.00"}
+                                          </div>
+                                          <div className="text-xs text-gray-600">
+                                            Rate: {product.dutyCalculation.dutyRate || 'N/A'} ({product.dutyCalculation.dutyRateType || 'general'})
+                                          </div>
+                                          {product.dutyCalculation.freeTradeAgreement && product.dutyCalculation.freeTradeAgreement !== 'None' && (
+                                            <div className="text-xs text-blue-600 flex items-center gap-1">
+                                              <Globe className="h-3 w-3" />
+                                              <span>FTA: {product.dutyCalculation.freeTradeAgreement}</span>
+                                              {product.dutyCalculation.ftaBenefit && product.dutyCalculation.ftaBenefit > 0 && (
+                                                <span className="text-green-600">
+                                                  (Savings: {product.dutyCalculation.currency || "USD"} {product.dutyCalculation.ftaBenefit.toLocaleString(undefined, {
+                                                    minimumFractionDigits: 2,
+                                                    maximumFractionDigits: 2,
+                                                  })})
+                                                </span>
+                                              )}
+                                            </div>
+                                          )}
+                                          {product.dutyCalculation.additionalDuties && (
+                                            <div className="text-xs text-orange-600">
+                                              + Additional: {product.dutyCalculation.additionalDuties}
+                                            </div>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  ) : product.htsCode ? (
+                                    <span className="text-gray-400 text-xs">No duty calculation available</span>
+                                  ) : (
+                                    "-"
+                                  )}
                                 </TableCell>
                               )}
                             </TableRow>
@@ -962,13 +1014,235 @@ export default function DashboardPage() {
                             <span className="ml-2 font-medium text-gray-900">{doc.extractedData.shipmentInfo.estimatedArrivalDate}</span>
                           </div>
                         )}
-                        {doc.extractedData.shipmentInfo.incoterms && (
+                        {/* Show enriched incoterm if available, otherwise show raw extracted incoterm */}
+                        {(doc.extractedData.shipmentInfo.incoterm || doc.extractedData.shipmentInfo.incoterms) && (
                           <div>
                             <span className="text-gray-500">Incoterms:</span>
-                            <span className="ml-2 font-medium text-gray-900">{doc.extractedData.shipmentInfo.incoterms}</span>
+                            <span className="ml-2 font-medium text-gray-900">
+                              {doc.extractedData.shipmentInfo.incoterm || doc.extractedData.shipmentInfo.incoterms}
+                              {doc.extractedData.shipmentInfo.incotermDetails && (
+                                <span className="text-gray-600 text-xs ml-1">
+                                  ({doc.extractedData.shipmentInfo.incotermDetails.name})
+                                </span>
+                              )}
+                            </span>
                           </div>
                         )}
                       </div>
+                      
+                      {/* Display detailed incoterm information if available */}
+                      {doc.extractedData.shipmentInfo.incotermDetails && (
+                        <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                          <h4 className="font-semibold text-gray-900 mb-3 text-sm flex items-center gap-2">
+                            <span>Incoterm Details: {doc.extractedData.shipmentInfo.incotermDetails.name}</span>
+                            <span className="px-2 py-1 bg-green-600 text-white text-xs font-bold rounded">
+                              {doc.extractedData.shipmentInfo.incoterm}
+                            </span>
+                          </h4>
+                          {doc.extractedData.shipmentInfo.incotermDetails.description_short && (
+                            <p className="text-sm text-gray-700 mb-3">
+                              {doc.extractedData.shipmentInfo.incotermDetails.description_short}
+                            </p>
+                          )}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-3 h-3 rounded-full ${doc.extractedData.shipmentInfo.incotermDetails.includes_pre_carriage ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                              <span className="text-gray-600">Pre-Carriage</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`w-3 h-3 rounded-full ${doc.extractedData.shipmentInfo.incotermDetails.includes_main_carriage ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                              <span className="text-gray-600">Main Carriage</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`w-3 h-3 rounded-full ${doc.extractedData.shipmentInfo.incotermDetails.includes_insurance ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                              <span className="text-gray-600">Insurance</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`w-3 h-3 rounded-full ${doc.extractedData.shipmentInfo.incotermDetails.includes_export_clearance ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                              <span className="text-gray-600">Export Clearance</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`w-3 h-3 rounded-full ${doc.extractedData.shipmentInfo.incotermDetails.includes_import_clearance ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                              <span className="text-gray-600">Import Clearance</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`w-3 h-3 rounded-full ${doc.extractedData.shipmentInfo.incotermDetails.includes_duties_taxes ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                              <span className="text-gray-600">Duties & Taxes</span>
+                            </div>
+                            {doc.extractedData.shipmentInfo.incotermDetails.transport_mode && (
+                              <div>
+                                <span className="text-gray-500">Transport Mode:</span>
+                                <span className="ml-2 font-medium text-gray-900 capitalize">
+                                  {doc.extractedData.shipmentInfo.incotermDetails.transport_mode}
+                                </span>
+                              </div>
+                            )}
+                            {doc.extractedData.shipmentInfo.incotermDetails.valuation_basis && (
+                              <div>
+                                <span className="text-gray-500">Valuation Basis:</span>
+                                <span className="ml-2 font-medium text-gray-900">
+                                  {doc.extractedData.shipmentInfo.incotermDetails.valuation_basis}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          {doc.extractedData.shipmentInfo.incotermDetails.risk_transfer_point && (
+                            <div className="mt-3 pt-3 border-t border-green-200">
+                              <span className="text-gray-500 text-sm">Risk Transfer Point: </span>
+                              <span className="text-gray-900 text-sm font-medium">
+                                {doc.extractedData.shipmentInfo.incotermDetails.risk_transfer_point}
+                              </span>
+                            </div>
+                          )}
+                          {doc.extractedData.shipmentInfo.incotermDetails.notes && (
+                            <div className="mt-2 pt-2 border-t border-green-200">
+                              <span className="text-gray-500 text-sm">Notes: </span>
+                              <span className="text-gray-700 text-sm">
+                                {doc.extractedData.shipmentInfo.incotermDetails.notes}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Duty Calculations Summary - Always displayed after Shipment Information */}
+                  {/* Show this section if there are products with HTS codes or if duty calculations exist */}
+                  {(allProducts.some((p: any) => p.htsCode) || doc.extractedData.totalDuties || (doc.extractedData.dutyCalculations && doc.extractedData.dutyCalculations.length > 0)) && (
+                    <div className="mt-4 p-4 bg-gradient-to-br from-red-50 to-orange-50 rounded-lg border border-red-200 shadow-sm">
+                      <h4 className="font-semibold text-gray-900 mb-3 text-sm flex items-center gap-2">
+                        <Calculator className="h-4 w-4 text-red-600" />
+                        <span>Duty Calculations (Incoterms 2020 Compliant)</span>
+                      </h4>
+                      
+                      {/* Show total duties if available */}
+                      {doc.extractedData.totalDuties && doc.extractedData.totalDuties.amount > 0 ? (
+                        <>
+                          <div className="text-2xl font-bold text-red-600 mb-2">
+                            {doc.extractedData.totalDuties.currency || "USD"} {doc.extractedData.totalDuties.amount?.toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            }) || "0.00"}
+                          </div>
+                          <p className="text-xs text-gray-600 mb-3">Total duties calculated from HTS codes table</p>
+                        </>
+                      ) : doc.extractedData.totalDuties && doc.extractedData.totalDuties.amount === 0 ? (
+                        <div className="text-lg font-semibold text-green-600 mb-2 flex items-center gap-2">
+                          <CheckCircle className="h-5 w-5" />
+                          <span>No Duties Apply</span>
+                        </div>
+                      ) : null}
+                      
+                      {/* Show duty calculations breakdown if available */}
+                      {doc.extractedData.dutyCalculations && doc.extractedData.dutyCalculations.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          <p className="text-xs font-medium text-gray-700 mb-2">Breakdown by HTS Code:</p>
+                          {doc.extractedData.dutyCalculations.map((duty: any, idx: number) => (
+                            <div 
+                              key={idx} 
+                              className={`text-xs bg-white p-3 rounded border ${
+                                duty.isDutyFree 
+                                  ? 'border-green-200 bg-green-50' 
+                                  : 'border-red-100'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-gray-700 font-semibold">{duty.htsCode || duty.htsNumber}</span>
+                                  {duty.freeTradeAgreement && duty.freeTradeAgreement !== 'None' && (
+                                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+                                      {duty.freeTradeAgreement}
+                                    </span>
+                                  )}
+                                  {duty.isDutyFree && (
+                                    <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
+                                      Free
+                                    </span>
+                                  )}
+                                </div>
+                                <span className={`font-semibold ${
+                                  duty.isDutyFree ? 'text-green-600' : 'text-red-600'
+                                }`}>
+                                  {duty.isDutyFree ? (
+                                    <span className="flex items-center gap-1">
+                                      <CheckCircle className="h-3 w-3" />
+                                      No Duty
+                                    </span>
+                                  ) : (
+                                    `${duty.currency || "USD"} ${duty.calculatedDuty?.toLocaleString(undefined, {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    }) || "0.00"}`
+                                  )}
+                                </span>
+                              </div>
+                              
+                              {!duty.isDutyFree && (
+                                <div className="text-gray-600 mt-1 space-y-0.5">
+                                  <div className="text-xs">
+                                    <span className="font-medium">Rate:</span> {duty.dutyRate || 'N/A'} ({duty.dutyRateType || 'general'})
+                                  </div>
+                                  {duty.freeTradeAgreement && duty.freeTradeAgreement !== 'None' && duty.ftaBenefit && duty.ftaBenefit > 0 && (
+                                    <div className="text-xs text-blue-600">
+                                      <span className="font-medium">FTA Benefit:</span> {duty.currency || "USD"} {duty.ftaBenefit.toLocaleString(undefined, {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      })}
+                                    </div>
+                                  )}
+                                  {duty.additionalDuties && (
+                                    <div className="text-xs text-orange-600">
+                                      <span className="font-medium">Additional Duties:</span> {duty.additionalDuties}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              
+                              {duty.calculationBreakdown && (
+                                <div className="text-gray-600 mt-2 pt-2 border-t border-gray-200 text-xs italic">
+                                  {duty.calculationBreakdown}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : allProducts.some((p: any) => p.htsCode) ? (
+                        // Show message if products have HTS codes but no calculations yet
+                        <div className="mt-3 p-3 bg-yellow-50 rounded border border-yellow-200">
+                          <p className="text-xs text-yellow-800">
+                            <Info className="h-3 w-3 inline mr-1" />
+                            Products with HTS codes found, but duty calculations are not yet available. 
+                            Calculations are performed when incoterms don't include duties/taxes.
+                          </p>
+                          <div className="mt-2 space-y-1">
+                            {allProducts
+                              .filter((p: any) => p.htsCode)
+                              .map((product: any, idx: number) => (
+                                <div key={idx} className="text-xs text-gray-600">
+                                  <span className="font-mono">{product.htsCode}</span>
+                                  {product.description && (
+                                    <span className="ml-2">- {product.description}</span>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      ) : null}
+                      
+                      {/* Show incoterm information */}
+                      {doc.extractedData.shipmentInfo?.incotermDetails && (
+                        <div className="mt-3 pt-3 border-t border-red-200">
+                          <p className="text-xs text-gray-600">
+                            <span className="font-medium">Incoterm:</span> {doc.extractedData.shipmentInfo.incoterm} ({doc.extractedData.shipmentInfo.incotermDetails.name})
+                            {doc.extractedData.shipmentInfo.incotermDetails.includes_duties_taxes ? (
+                              <span className="text-green-600 ml-2">• Duties included in incoterm</span>
+                            ) : (
+                              <span className="text-red-600 ml-2">• Buyer responsible for duties</span>
+                            )}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

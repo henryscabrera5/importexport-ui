@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { GoogleGenerativeAI } from "@google/generative-ai"
+import { matchIncoterm } from "@/lib/services/incoterms"
+import { findHtsCode, calculateDutiesWithGemini } from "@/lib/services/hts-duty-calculator"
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 
@@ -113,7 +115,198 @@ Return a brief JSON summary: { "documentType": "...", "hasTables": true/false, "
     }
 
     // Add understanding metadata to parsed data
-    parsedData.documentUnderstanding = documentUnderstanding
+    if (parsedData && typeof parsedData === 'object') {
+      parsedData.documentUnderstanding = documentUnderstanding
+
+      // Match and enrich incoterm if present in shipmentInfo
+      try {
+        // Ensure shipmentInfo exists
+        if (!parsedData.shipmentInfo) {
+          parsedData.shipmentInfo = {}
+        }
+
+        let matchedIncoterm = null
+        let incotermToUse = parsedData.shipmentInfo?.incoterms || parsedData.shipmentInfo?.incoterm
+
+        // If incoterm is N/A, null, undefined, or empty, assume FOB
+        if (!incotermToUse || incotermToUse.trim().toUpperCase() === 'N/A' || incotermToUse.trim().toUpperCase() === 'NA') {
+          console.log("Incoterm is N/A or missing, assuming FOB")
+          incotermToUse = 'FOB'
+          matchedIncoterm = matchIncoterm('FOB')
+        } else {
+          console.log("Found incoterm in document:", incotermToUse)
+          matchedIncoterm = matchIncoterm(incotermToUse)
+          console.log("Matched incoterm result:", matchedIncoterm ? matchedIncoterm.code : "No match found")
+          
+          // If no match found, assume FOB
+          if (!matchedIncoterm) {
+            console.log("Incoterm not recognized, assuming FOB")
+            incotermToUse = 'FOB'
+            matchedIncoterm = matchIncoterm('FOB')
+          }
+        }
+        
+        if (matchedIncoterm) {
+          // Add matched incoterm details to the extracted data
+          parsedData.shipmentInfo.incoterm = matchedIncoterm.code
+          parsedData.shipmentInfo.incotermDetails = {
+            name: matchedIncoterm.name,
+            description_short: matchedIncoterm.description_short,
+            includes_insurance: matchedIncoterm.includes_insurance,
+            includes_duties_taxes: matchedIncoterm.includes_duties_taxes,
+            includes_export_clearance: matchedIncoterm.includes_export_clearance,
+            includes_import_clearance: matchedIncoterm.includes_import_clearance,
+            includes_pre_carriage: matchedIncoterm.includes_pre_carriage,
+            includes_main_carriage: matchedIncoterm.includes_main_carriage,
+            transport_mode: matchedIncoterm.transport_mode,
+            valuation_basis: matchedIncoterm.valuation_basis,
+            risk_transfer_point: matchedIncoterm.risk_transfer_point,
+            notes: matchedIncoterm.notes,
+          }
+
+          // If incoterm doesn't include duties/taxes, calculate them
+          if (!matchedIncoterm.includes_duties_taxes && parsedData.products && Array.isArray(parsedData.products)) {
+              try {
+                console.log("Incoterm does not include duties/taxes, calculating duties for products...")
+                
+                // Calculate duties for each product with an HTS code
+                const dutyCalculations = await Promise.all(
+                  parsedData.products.map(async (product: any, index: number) => {
+                    if (!product.htsCode || !product.htsCode.trim()) {
+                      return null
+                    }
+
+                    try {
+                      // Find HTS code in database
+                      const htsDutyInfo = await findHtsCode(product.htsCode)
+                      
+                      if (!htsDutyInfo) {
+                        console.log(`No HTS code found in database: ${product.htsCode}`)
+                        return null
+                      }
+                      
+                      // Check if duty is "Free", null, or empty
+                      const isDutyFree = !htsDutyInfo.selected_rate || 
+                                       htsDutyInfo.selected_rate.trim().toUpperCase() === 'FREE' ||
+                                       htsDutyInfo.selected_rate.trim() === ''
+                      
+                      if (isDutyFree) {
+                        console.log(`HTS code ${product.htsCode} has no duty (Free/null/empty)`)
+                        // Return duty-free calculation
+                        return {
+                          productIndex: index,
+                          htsCode: product.htsCode,
+                          htsDutyInfo,
+                          dutyCalculation: {
+                            dutyRate: 'Free',
+                            dutyRateType: 'general',
+                            additionalDuties: null,
+                            calculatedDuty: 0,
+                            calculationBreakdown: 'No duty applies - HTS code rate is Free, null, or empty',
+                            currency: product.currency || parsedData.currency || 'USD',
+                            freeTradeAgreement: null,
+                            ftaBenefit: null,
+                            isDutyFree: true,
+                          },
+                        }
+                      }
+
+                      // Calculate duties using Gemini
+                      const dutyCalculation = await calculateDutiesWithGemini(
+                        htsDutyInfo,
+                        {
+                          description: product.description || '',
+                          quantity: product.quantity || 0,
+                          unitPrice: product.unitPrice || 0,
+                          totalPrice: product.totalPrice || 0,
+                          unitOfMeasure: product.unitOfMeasure,
+                          weight: product.weight,
+                          weightUnit: product.weightUnit,
+                          currency: product.currency || parsedData.currency || 'USD',
+                          countryOfOrigin: product.countryOfOrigin || parsedData.shipmentInfo?.originCountry,
+                        },
+                        parsedData,
+                        model
+                      )
+
+                      return {
+                        productIndex: index,
+                        htsCode: product.htsCode,
+                        htsDutyInfo,
+                        dutyCalculation,
+                      }
+                    } catch (dutyError) {
+                      console.error(`Error calculating duty for product ${product.description}:`, dutyError)
+                      return null
+                    }
+                  })
+                )
+
+                // Filter out null results and add duty calculations to products
+                const validDutyCalculations = dutyCalculations.filter((calc): calc is NonNullable<typeof calc> => calc !== null)
+                
+                if (validDutyCalculations.length > 0) {
+                  // Add duty calculations to the parsed data
+                  parsedData.dutyCalculations = validDutyCalculations.map(calc => ({
+                    htsCode: calc.htsCode,
+                    htsNumber: calc.htsDutyInfo.hts_number,
+                    dutyRate: calc.dutyCalculation.dutyRate,
+                    dutyRateType: calc.dutyCalculation.dutyRateType,
+                    additionalDuties: calc.dutyCalculation.additionalDuties,
+                    calculatedDuty: calc.dutyCalculation.calculatedDuty,
+                    calculationBreakdown: calc.dutyCalculation.calculationBreakdown,
+                    currency: calc.dutyCalculation.currency,
+                    freeTradeAgreement: calc.dutyCalculation.freeTradeAgreement,
+                    ftaBenefit: calc.dutyCalculation.ftaBenefit,
+                    isDutyFree: calc.dutyCalculation.isDutyFree,
+                  }))
+
+                  // Also add duty info to each product
+                  validDutyCalculations.forEach(calc => {
+                    if (parsedData.products[calc.productIndex]) {
+                      parsedData.products[calc.productIndex].dutyCalculation = {
+                        htsNumber: calc.htsDutyInfo.hts_number,
+                        dutyRate: calc.dutyCalculation.dutyRate,
+                        dutyRateType: calc.dutyCalculation.dutyRateType,
+                        additionalDuties: calc.dutyCalculation.additionalDuties,
+                        calculatedDuty: calc.dutyCalculation.calculatedDuty,
+                        calculationBreakdown: calc.dutyCalculation.calculationBreakdown,
+                        currency: calc.dutyCalculation.currency,
+                        freeTradeAgreement: calc.dutyCalculation.freeTradeAgreement,
+                        ftaBenefit: calc.dutyCalculation.ftaBenefit,
+                        isDutyFree: calc.dutyCalculation.isDutyFree,
+                      }
+                    }
+                  })
+
+                  // Calculate total duties
+                  const totalDuties = validDutyCalculations.reduce((sum, calc) => {
+                    return sum + (calc.dutyCalculation.calculatedDuty || 0)
+                  }, 0)
+
+                  parsedData.totalDuties = {
+                    amount: totalDuties,
+                    currency: validDutyCalculations[0]?.dutyCalculation.currency || 'USD',
+                    breakdown: validDutyCalculations.map(calc => ({
+                      htsCode: calc.htsCode,
+                      duty: calc.dutyCalculation.calculatedDuty,
+                    })),
+                  }
+
+                  console.log(`Calculated duties for ${validDutyCalculations.length} products. Total: ${totalDuties}`)
+                }
+              } catch (dutyCalcError) {
+                // Log error but don't fail the entire document processing
+                console.error("Error calculating duties:", dutyCalcError)
+              }
+          }
+        }
+      } catch (incotermError) {
+        // Log error but don't fail the entire document processing
+        console.error("Error matching incoterm:", incotermError)
+        // Continue processing without incoterm matching
+      }
+    }
 
     // NOTE: Response structure may be modified when integrating with Supabase storage
     return NextResponse.json({
@@ -128,10 +321,27 @@ Return a brief JSON summary: { "documentType": "...", "hasTables": true/false, "
     })
   } catch (error) {
     console.error("Error processing document:", error)
+    const errorMessage = error instanceof Error ? error.message : "Unknown error"
+    const errorStack = error instanceof Error ? error.stack : undefined
+    const errorName = error instanceof Error ? error.name : "Error"
+    console.error("Error details:", { 
+      errorName,
+      errorMessage, 
+      errorStack,
+      error: error instanceof Error ? error.toString() : String(error)
+    })
+    
+    // Return more detailed error information
     return NextResponse.json(
       {
         error: "Failed to process document",
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: errorMessage,
+        errorName: errorName,
+        details: error instanceof Error ? {
+          name: error.name,
+          message: error.message,
+          stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+        } : { raw: String(error) },
       },
       { status: 500 },
     )
