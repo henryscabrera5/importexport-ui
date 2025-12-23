@@ -161,6 +161,31 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 /**
+ * Extract HTS codes from parsed document data
+ * @param parsedData - The parsed document data containing products array
+ * @returns Object with primary_hts_code and hts_codes array
+ */
+function extractHtsCodesFromParsedData(parsedData: any) {
+  const products = Array.isArray(parsedData?.products)
+    ? parsedData.products
+    : []
+
+  const codes = products
+    .map((p: any) => {
+      const raw = p?.htsCode ?? p?.hts_code
+      return raw ? String(raw).trim() : null
+    })
+    .filter((code: string | null): code is string => code !== null && code !== "")
+
+  const unique = Array.from(new Set(codes))
+
+  return {
+    primary_hts_code: unique.length > 0 ? unique[0] : null,
+    hts_codes: unique.length > 0 ? unique : [],
+  }
+}
+
+/**
  * Save processed document to Supabase
  * NOTE: This saves the extracted data to the document_parsed_data table with parsed_json field
  * @param processedDoc - The processed document data from Gemini
@@ -195,7 +220,11 @@ export async function saveProcessedDocumentToSupabase(
       throw new Error("Failed to save document: No data returned")
     }
 
-    // Step 2: Save parsed data to document_parsed_data table
+    // Step 2: Extract HTS codes from parsed data
+    const { primary_hts_code, hts_codes } =
+      extractHtsCodesFromParsedData(processedDoc.extractedData)
+
+    // Step 3: Save parsed data to document_parsed_data table
     // NOTE: The parsed_json field stores the entire extracted data structure including documentType
     const { data: parsedData, error: parsedError } = await supabase
       .from("document_parsed_data")
@@ -207,6 +236,9 @@ export async function saveProcessedDocumentToSupabase(
         }, // Save documentType and extractedData as JSONB
         extraction_confidence: processedDoc.confidence * 100, // Convert to percentage
         extraction_method: processedDoc.processingMetadata.extractionMethod || "gemini_vision",
+        // HTS code fields
+        primary_hts_code,
+        hts_codes,
       })
       .select()
       .single()

@@ -27,6 +27,95 @@ export interface HtsDutyInfo {
   selected_rate_type: 'general' | 'special' | 'column_2' | null
 }
 
+export interface HtsCodeComponents {
+  chapter: string
+  heading: string
+  subheading: string
+  statSuffix: string
+  originalCode: string
+}
+
+/**
+ * Parse HTS code into components
+ * Format: XXXX.XX.XXXX (ChapterHeading.Subheading.StatSuffix)
+ * Example: 0101.21.0010 → Chapter: 01, Heading: 01, Subheading: 21, Stat. Suffix: 10
+ * If no Stat. Suffix exists, assume it is "00"
+ */
+export function parseHtsCode(htsCode: string): HtsCodeComponents | null {
+  if (!htsCode || !htsCode.trim()) {
+    return null
+  }
+
+  // Remove spaces and convert to uppercase
+  const cleaned = htsCode.trim().toUpperCase().replace(/\s+/g, '')
+
+  // Handle different formats
+  let parts: string[] = []
+  
+  if (cleaned.includes('.')) {
+    parts = cleaned.split('.')
+  } else {
+    // No dots - try to parse as XXXXXXXXXX (10 digits: XXXX XX XXXX)
+    if (cleaned.length >= 6) {
+      parts = [
+        cleaned.substring(0, 4), // Chapter + Heading
+        cleaned.substring(4, 6), // Subheading
+        cleaned.substring(6) // Stat Suffix
+      ]
+    } else {
+      return null
+    }
+  }
+
+  if (parts.length < 2) {
+    return null
+  }
+
+  // First part: XXXX = Chapter (2 digits) + Heading (2 digits)
+  const chapterHeading = parts[0].padStart(4, '0')
+  const chapter = chapterHeading.substring(0, 2)
+  const heading = chapterHeading.substring(2, 4)
+  
+  // Second part: XX = Subheading (2 digits)
+  const subheading = parts[1].padStart(2, '0').substring(0, 2)
+  
+  // Third part: XXXX = Stat. Suffix (4 digits, but we only care about last 2)
+  let statSuffix = '00'
+  if (parts.length >= 3 && parts[2]) {
+    const suffixPart = parts[2].padStart(4, '0')
+    // Extract last 2 digits as the actual stat suffix
+    statSuffix = suffixPart.substring(suffixPart.length - 2)
+  }
+
+  return {
+    chapter,
+    heading,
+    subheading,
+    statSuffix,
+    originalCode: htsCode,
+  }
+}
+
+/**
+ * Build HTS code from components
+ * Format: XXXX.XX.XXXX (ChapterHeading.Subheading.StatSuffix)
+ * Example: 0101.21.0010 where 0101 = Chapter(01) + Heading(01), 21 = Subheading, 0010 = StatSuffix(10 padded to 4 digits)
+ */
+function buildHtsCode(components: HtsCodeComponents): string {
+  const chapterHeading = `${components.chapter}${components.heading}`
+  const statSuffixPadded = components.statSuffix.padStart(4, '0') // Pad to 4 digits: 10 -> 0010
+  return `${chapterHeading}.${components.subheading}.${statSuffixPadded}`
+}
+
+/**
+ * Build HTS code with 00 suffix (base duty version)
+ * Format: XXXX.XX.0000
+ */
+function buildBaseHtsCode(components: HtsCodeComponents): string {
+  const chapterHeading = `${components.chapter}${components.heading}`
+  return `${chapterHeading}.${components.subheading}.0000`
+}
+
 /**
  * Normalize HTS code for flexible matching
  * Handles different formats like 3002.12.0010 vs 3002.12.00.10
@@ -104,7 +193,125 @@ function normalizeHtsCode(htsCode: string): string[] {
 }
 
 /**
- * Find HTS code in Supabase database with flexible matching
+ * Query HTS code from database
+ * Searches in hts_codes_table table using hts_number column
+ * 
+ * Source: HTS codes from document_parsed_data.hts_codes column (text array)
+ * Target: hts_codes_table table, hts_number column
+ */
+async function queryHtsCodeFromDb(codeToSearch: string): Promise<any | null> {
+  // Query hts_codes_table table using hts_number column
+  const { data, error } = await supabase
+    .from('hts_codes_table')
+    .select('*')
+    .eq('hts_number', codeToSearch)
+    .maybeSingle()
+  
+  if (error && error.code !== 'PGRST116') {
+    console.error(`[queryHtsCodeFromDb] Error querying code "${codeToSearch}" in hts_codes_table:`, error.message)
+    return null
+  }
+  
+  if (data) {
+    // Duties are stored as columns in each row
+    return {
+      hts_number: data.hts_number || codeToSearch,
+      general_rate_of_duty: data.general_rate_of_duty || data.general || null,
+      special_rate_of_duty: data.special_rate_of_duty || data.special || null,
+      column_2_rate_of_duty: data.column_2_rate_of_duty || data.other || null,
+      unit_of_quantity: data.unit_of_quantity || data.units || null,
+      additional_duties: data.additional_duties || null,
+    }
+  }
+  
+  return null
+}
+
+/**
+ * Check if duty data has any valid duty rates
+ * Returns true if ANY of the duty fields (general_rate_of_duty, special_rate_of_duty, column_2_rate_of_duty, additional_duties) has a value
+ */
+function hasDutyRates(data: any): boolean {
+  if (!data) return false
+  
+  const hasGeneral = data.general_rate_of_duty && 
+    data.general_rate_of_duty.trim() !== '' && 
+    data.general_rate_of_duty.toLowerCase() !== 'free' &&
+    data.general_rate_of_duty.toLowerCase() !== 'null'
+  
+  const hasSpecial = data.special_rate_of_duty && 
+    data.special_rate_of_duty.trim() !== '' && 
+    data.special_rate_of_duty.toLowerCase() !== 'free' &&
+    data.special_rate_of_duty.toLowerCase() !== 'null'
+  
+  const hasColumn2 = data.column_2_rate_of_duty && 
+    data.column_2_rate_of_duty.trim() !== '' && 
+    data.column_2_rate_of_duty.toLowerCase() !== 'free' &&
+    data.column_2_rate_of_duty.toLowerCase() !== 'null'
+  
+  const hasAdditional = data.additional_duties && 
+    data.additional_duties.trim() !== '' && 
+    data.additional_duties.toLowerCase() !== 'free' &&
+    data.additional_duties.toLowerCase() !== 'null'
+  
+  // Return true if ANY duty field has a value
+  return hasGeneral || hasSpecial || hasColumn2 || hasAdditional
+}
+
+/**
+ * Replace last 2 digits of HTS code with "00"
+ * Examples: 
+ * - "0101.21.0010" -> "0101.21.0000"
+ * - "0101.21.10" -> "0101.21.00"
+ * - "0101210010" -> "0101210000"
+ */
+function replaceLastTwoDigitsWithZero(htsCode: string): string {
+  if (!htsCode || htsCode.length < 2) {
+    return htsCode
+  }
+  
+  // Handle different formats
+  if (htsCode.includes('.')) {
+    const parts = htsCode.split('.')
+    if (parts.length >= 3) {
+      // Replace last part's last 2 digits with 00
+      const lastPart = parts[parts.length - 1]
+      if (lastPart.length >= 2) {
+        // Replace last 2 digits with 00 (not add zeros)
+        const newLastPart = lastPart.substring(0, lastPart.length - 2) + '00'
+        return [...parts.slice(0, -1), newLastPart].join('.')
+      } else if (lastPart.length === 1) {
+        // Single digit - pad to 00
+        return [...parts.slice(0, -1), '00'].join('.')
+      }
+    } else if (parts.length === 2) {
+      // Format: XXXX.XX - add .00
+      return `${htsCode}.00`
+    }
+  } else {
+    // No dots - replace last 2 digits
+    if (htsCode.length >= 2) {
+      return htsCode.substring(0, htsCode.length - 2) + '00'
+    }
+  }
+  return htsCode
+}
+
+/**
+ * Get first 4 digits of HTS code (chapter + heading)
+ */
+function getFirstFourDigits(htsCode: string): string {
+  const cleaned = htsCode.replace(/\./g, '').replace(/\s/g, '')
+  return cleaned.substring(0, 4)
+}
+
+/**
+ * Find HTS code in Supabase database with fallback logic
+ * 
+ * Logic:
+ * 1. Use the exact HTS code as provided (from document_parsed_data.hts_codes)
+ * 2. If not found or no duties, replace last 2 digits with "00" (not add zeros)
+ * 3. If still not found, search by first 4 digits only
  */
 export async function findHtsCode(htsCode: string): Promise<HtsDutyInfo | null> {
   if (!htsCode || !htsCode.trim()) {
@@ -120,158 +327,128 @@ export async function findHtsCode(htsCode: string): Promise<HtsDutyInfo | null> 
     return null
   }
   
-  const formats = normalizeHtsCode(htsCode)
-  console.log(`[findHtsCode] Searching for HTS code: "${htsCode}" with formats:`, formats)
-  console.log(`[findHtsCode] Supabase URL: ${supabaseUrl}`)
+  // Use the exact code as provided (from document_parsed_data)
+  const exactCode = htsCode.trim()
+  console.log(`[findHtsCode] Searching for exact code: "${exactCode}"`)
   
-  // Try each format until we find a match
-  for (const format of formats) {
-    console.log(`[findHtsCode] Trying format: "${format}"`)
+  // Step 1: Try exact match first (using HTS code from document_parsed_data.hts_codes)
+  let data = await queryHtsCodeFromDb(exactCode)
+  
+  // Step 2: Only proceed to fallback if exact code not found OR all duty fields are blank/null
+  // Check all four fields: general_rate_of_duty, special_rate_of_duty, column_2_rate_of_duty, additional_duties
+  if (!data || !hasDutyRates(data)) {
+    const baseCode = replaceLastTwoDigitsWithZero(exactCode)
+    console.log(`[findHtsCode] Exact code has no duties (all fields blank/null) or not found, trying with last 2 digits replaced: "${baseCode}"`)
     
-    // Try with hts_number column first (new structure)
-    let { data, error } = await supabase
-      .from('hts_codes')
-      .select('hts_number, general_rate_of_duty, special_rate_of_duty, column_2_rate_of_duty, unit_of_quantity, additional_duties')
-      .eq('hts_number', format)
-      .single()
-    
-    // If that fails, try with hts_code column (old structure)
-    if (error && error.code === 'PGRST116') {
-      console.log(`[findHtsCode] Column "hts_number" not found, trying "hts_code"...`)
-      const result = await supabase
-        .from('hts_codes')
-        .select('hts_code, general_rate_of_duty, special_rate_of_duty, column_2_rate_of_duty, unit_of_quantity, additional_duties')
-        .eq('hts_code', format)
-        .single()
+    // Only try if the base code is different from exact code
+    if (baseCode !== exactCode) {
+      const baseData = await queryHtsCodeFromDb(baseCode)
       
-      if (!result.error && result.data) {
-        // Map old structure to new structure
+      if (baseData && hasDutyRates(baseData)) {
+        console.log(`[findHtsCode] Found base code with duties, applying to original code`)
+        // Use base code's duty data but keep original code number
         data = {
-          hts_number: result.data.hts_code,
-          general_rate_of_duty: result.data.general_rate_of_duty,
-          special_rate_of_duty: result.data.special_rate_of_duty,
-          column_2_rate_of_duty: result.data.column_2_rate_of_duty,
-          unit_of_quantity: result.data.unit_of_quantity,
-          additional_duties: result.data.additional_duties,
+          ...baseData,
+          hts_number: exactCode, // Keep original code
         }
-        error = null
-      } else {
-        error = result.error
-      }
-    }
-    
-    // Also try with old column names (general, special, other, units)
-    if (error && error.code === 'PGRST116') {
-      console.log(`[findHtsCode] Trying with old column names (general, special, other, units)...`)
-      const result = await supabase
-        .from('hts_codes')
-        .select('hts_code, general, special, other, units, additional_duties')
-        .eq('hts_code', format)
-        .single()
-      
-      if (!result.error && result.data) {
-        // Map old structure to new structure
-        data = {
-          hts_number: result.data.hts_code,
-          general_rate_of_duty: result.data.general,
-          special_rate_of_duty: result.data.special,
-          column_2_rate_of_duty: result.data.other,
-          unit_of_quantity: result.data.units,
-          additional_duties: result.data.additional_duties,
+      } else if (!data) {
+        // Step 3: If base code also not found or has no duties, try searching by first 4 digits only
+        console.log(`[findHtsCode] Base code not found or has no duties, trying first 4 digits only`)
+        const firstFourDigits = getFirstFourDigits(exactCode)
+        
+        // Search by first 4 digits in hts_codes_table table using hts_number column
+        const result = await supabase
+          .from('hts_codes_table')
+          .select('*')
+          .ilike('hts_number', `${firstFourDigits}%`)
+          .order('hts_number', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        
+        if (!result.error && result.data && hasDutyRates(result.data)) {
+          const foundCode = result.data.hts_number
+          console.log(`[findHtsCode] Found code with matching prefix: ${foundCode}`)
+          // Normalize and use this data - duties are stored as columns in the row
+          data = {
+            hts_number: exactCode,
+            general_rate_of_duty: result.data.general_rate_of_duty || result.data.general || null,
+            special_rate_of_duty: result.data.special_rate_of_duty || result.data.special || null,
+            column_2_rate_of_duty: result.data.column_2_rate_of_duty || result.data.other || null,
+            unit_of_quantity: result.data.unit_of_quantity || result.data.units || null,
+            additional_duties: result.data.additional_duties || null,
+          }
         }
-        error = null
-      } else {
-        error = result.error
-      }
-    }
-    
-    if (error) {
-      // Log error but continue trying other formats
-      console.error(`[findHtsCode] Error querying format "${format}":`, {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-      })
-      continue
-    }
-    
-    if (data) {
-      console.log(`[findHtsCode] Found match for format "${format}":`, data.hts_number || data.hts_code)
-      // Determine which rate to use (priority: column_2 > special > general)
-      let selectedRate: string | null = null
-      let selectedRateType: 'general' | 'special' | 'column_2' | null = null
-      
-      if (data.column_2_rate_of_duty && data.column_2_rate_of_duty.trim() !== '') {
-        selectedRate = data.column_2_rate_of_duty
-        selectedRateType = 'column_2'
-      } else if (data.special_rate_of_duty && data.special_rate_of_duty.trim() !== '') {
-        selectedRate = data.special_rate_of_duty
-        selectedRateType = 'special'
-      } else if (data.general_rate_of_duty && data.general_rate_of_duty.trim() !== '') {
-        selectedRate = data.general_rate_of_duty
-        selectedRateType = 'general'
-      }
-      
-      return {
-        hts_number: data.hts_number,
-        general_rate_of_duty: data.general_rate_of_duty,
-        special_rate_of_duty: data.special_rate_of_duty,
-        column_2_rate_of_duty: data.column_2_rate_of_duty,
-        unit_of_quantity: data.unit_of_quantity,
-        additional_duties: data.additional_duties,
-        selected_rate: selectedRate,
-        selected_rate_type: selectedRateType,
       }
     }
   }
   
-  // If exact match fails, try partial match (starts with)
-  const baseCode = formats[0].split('.')[0] + '.' + (formats[0].split('.')[1] || '')
-  if (baseCode.includes('.')) {
-    console.log(`[findHtsCode] Trying partial match with base code: "${baseCode}"`)
-    const { data, error } = await supabase
-      .from('hts_codes')
-      .select('hts_number, general_rate_of_duty, special_rate_of_duty, column_2_rate_of_duty, unit_of_quantity, additional_duties')
-      .ilike('hts_number', `${baseCode}%`)
-      .limit(1)
-      .single()
-    
-    if (error) {
-      console.log(`[findHtsCode] Error in partial match:`, error.message)
-    }
-    
-    if (!error && data) {
-      console.log(`[findHtsCode] Found partial match:`, data.hts_number)
-      let selectedRate: string | null = null
-      let selectedRateType: 'general' | 'special' | 'column_2' | null = null
-      
-      if (data.column_2_rate_of_duty && data.column_2_rate_of_duty.trim() !== '') {
-        selectedRate = data.column_2_rate_of_duty
-        selectedRateType = 'column_2'
-      } else if (data.special_rate_of_duty && data.special_rate_of_duty.trim() !== '') {
-        selectedRate = data.special_rate_of_duty
-        selectedRateType = 'special'
-      } else if (data.general_rate_of_duty && data.general_rate_of_duty.trim() !== '') {
-        selectedRate = data.general_rate_of_duty
-        selectedRateType = 'general'
-      }
-      
-      return {
-        hts_number: data.hts_number,
-        general_rate_of_duty: data.general_rate_of_duty,
-        special_rate_of_duty: data.special_rate_of_duty,
-        column_2_rate_of_duty: data.column_2_rate_of_duty,
-        unit_of_quantity: data.unit_of_quantity,
-        additional_duties: data.additional_duties,
-        selected_rate: selectedRate,
-        selected_rate_type: selectedRateType,
-      }
-    }
+  if (!data || !hasDutyRates(data)) {
+    console.log(`[findHtsCode] No duty data found for HTS code: "${htsCode}"`)
+    return null
   }
   
-  console.log(`[findHtsCode] No match found for HTS code: "${htsCode}"`)
-  return null
+  // Determine which rate to use (priority: column_2 > special > general)
+  let selectedRate: string | null = null
+  let selectedRateType: 'general' | 'special' | 'column_2' | null = null
+  
+  if (data.column_2_rate_of_duty && data.column_2_rate_of_duty.trim() !== '' && data.column_2_rate_of_duty.toLowerCase() !== 'free') {
+    selectedRate = data.column_2_rate_of_duty
+    selectedRateType = 'column_2'
+  } else if (data.special_rate_of_duty && data.special_rate_of_duty.trim() !== '' && data.special_rate_of_duty.toLowerCase() !== 'free') {
+    selectedRate = data.special_rate_of_duty
+    selectedRateType = 'special'
+  } else if (data.general_rate_of_duty && data.general_rate_of_duty.trim() !== '' && data.general_rate_of_duty.toLowerCase() !== 'free') {
+    selectedRate = data.general_rate_of_duty
+    selectedRateType = 'general'
+  }
+  
+  console.log(`[findHtsCode] Found duty info for "${htsCode}":`, {
+    hts_number: data.hts_number,
+    selected_rate: selectedRate,
+    selected_rate_type: selectedRateType,
+  })
+  
+  return {
+    hts_number: data.hts_number,
+    general_rate_of_duty: data.general_rate_of_duty,
+    special_rate_of_duty: data.special_rate_of_duty,
+    column_2_rate_of_duty: data.column_2_rate_of_duty,
+    unit_of_quantity: data.unit_of_quantity,
+    additional_duties: data.additional_duties,
+    selected_rate: selectedRate,
+    selected_rate_type: selectedRateType,
+  }
+}
+
+/**
+ * Fetch duty information for multiple HTS codes
+ * Returns a map of HTS code -> HtsDutyInfo
+ */
+export async function fetchDutiesForHtsCodes(htsCodes: string[]): Promise<Map<string, HtsDutyInfo>> {
+  const dutyMap = new Map<string, HtsDutyInfo>()
+  
+  if (!htsCodes || htsCodes.length === 0) {
+    return dutyMap
+  }
+  
+  // Fetch duties for all codes in parallel
+  const dutyPromises = htsCodes.map(async (code) => {
+    if (!code || !code.trim()) {
+      return null
+    }
+    const dutyInfo = await findHtsCode(code.trim())
+    return { code: code.trim(), dutyInfo }
+  })
+  
+  const results = await Promise.all(dutyPromises)
+  
+  results.forEach((result) => {
+    if (result && result.dutyInfo) {
+      dutyMap.set(result.code, result.dutyInfo)
+    }
+  })
+  
+  return dutyMap
 }
 
 /**

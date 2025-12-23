@@ -57,6 +57,8 @@ export async function GET(request: NextRequest) {
           parsed_json,
           extraction_confidence,
           extraction_method,
+          primary_hts_code,
+          hts_codes,
           created_at
         )
       `,
@@ -136,11 +138,34 @@ export async function GET(request: NextRequest) {
           }
 
           // Calculate duties if they don't exist and incoterm doesn't include duties/taxes
+          // Check if calculations are needed: no totalDuties OR no dutyCalculations array OR no product-level calculatedDuty values
+          const hasCalculatedDuties = extractedData.totalDuties && 
+                                      extractedData.totalDuties.amount !== undefined && 
+                                      extractedData.totalDuties.amount !== null &&
+                                      extractedData.dutyCalculations && 
+                                      Array.isArray(extractedData.dutyCalculations) && 
+                                      extractedData.dutyCalculations.length > 0 &&
+                                      extractedData.products.some((p: any) => p.dutyCalculation && p.dutyCalculation.calculatedDuty !== undefined)
+          
+          console.log("=== [API] Duty Calculation Check ===")
+          console.log("[API] Incoterm includes duties/taxes:", matchedIncoterm.includes_duties_taxes)
+          console.log("[API] Has calculated duties:", hasCalculatedDuties)
+          console.log("[API] Has products:", !!extractedData.products && Array.isArray(extractedData.products))
+          console.log("[API] Has genAI:", !!genAI)
+          console.log("[API] totalDuties:", extractedData.totalDuties)
+          console.log("[API] dutyCalculations:", extractedData.dutyCalculations)
+          console.log("[API] Products with dutyCalculation:", extractedData.products?.filter((p: any) => p.dutyCalculation).map((p: any) => ({
+            description: p.description,
+            hasDutyCalc: !!p.dutyCalculation,
+            calculatedDuty: p.dutyCalculation?.calculatedDuty
+          })))
+          
           if (!matchedIncoterm.includes_duties_taxes && 
               extractedData.products && 
               Array.isArray(extractedData.products) &&
-              !extractedData.totalDuties && // Only calculate if not already calculated
+              !hasCalculatedDuties && // Only calculate if not already calculated
               genAI) {
+            console.log("✅ [API] Conditions met, calculating duties...")
             try {
               console.log("Calculating duties for previously extracted document...")
               const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" })
@@ -193,26 +218,38 @@ export async function GET(request: NextRequest) {
               // Filter out null results and add duty calculations to products
               const validDutyCalculations = dutyCalculations.filter((calc): calc is NonNullable<typeof calc> => calc !== null)
               
+              console.log("=== [API] Duty Calculation Results ===")
+              console.log(`[API] Valid calculations: ${validDutyCalculations.length} out of ${dutyCalculations.length}`)
+              
               if (validDutyCalculations.length > 0) {
                 // Add duty calculations to the extracted data
-                extractedData.dutyCalculations = validDutyCalculations.map(calc => ({
-                  htsCode: calc.htsCode,
-                  htsNumber: calc.htsDutyInfo.hts_number,
-                  dutyRate: calc.dutyCalculation.dutyRate,
-                  dutyRateType: calc.dutyCalculation.dutyRateType,
-                  additionalDuties: calc.dutyCalculation.additionalDuties,
-                  calculatedDuty: calc.dutyCalculation.calculatedDuty,
-                  calculationBreakdown: calc.dutyCalculation.calculationBreakdown,
-                  currency: calc.dutyCalculation.currency,
-                  freeTradeAgreement: calc.dutyCalculation.freeTradeAgreement,
-                  ftaBenefit: calc.dutyCalculation.ftaBenefit,
-                  isDutyFree: calc.dutyCalculation.isDutyFree,
-                }))
+                extractedData.dutyCalculations = validDutyCalculations.map(calc => {
+                  const dutyCalc = {
+                    htsCode: calc.htsCode,
+                    htsNumber: calc.htsDutyInfo.hts_number,
+                    dutyRate: calc.dutyCalculation.dutyRate,
+                    dutyRateType: calc.dutyCalculation.dutyRateType,
+                    additionalDuties: calc.dutyCalculation.additionalDuties,
+                    calculatedDuty: calc.dutyCalculation.calculatedDuty,
+                    calculationBreakdown: calc.dutyCalculation.calculationBreakdown,
+                    currency: calc.dutyCalculation.currency,
+                    freeTradeAgreement: calc.dutyCalculation.freeTradeAgreement,
+                    ftaBenefit: calc.dutyCalculation.ftaBenefit,
+                    isDutyFree: calc.dutyCalculation.isDutyFree,
+                  }
+                  console.log(`[API] Duty Calculation for ${calc.htsCode}:`, {
+                    calculatedDuty: dutyCalc.calculatedDuty,
+                    currency: dutyCalc.currency,
+                    dutyRate: dutyCalc.dutyRate,
+                    isDutyFree: dutyCalc.isDutyFree,
+                  })
+                  return dutyCalc
+                })
 
                 // Also add duty info to each product
                 validDutyCalculations.forEach(calc => {
                   if (extractedData.products[calc.productIndex]) {
-                    extractedData.products[calc.productIndex].dutyCalculation = {
+                    const productDutyCalc = {
                       htsNumber: calc.htsDutyInfo.hts_number,
                       dutyRate: calc.dutyCalculation.dutyRate,
                       dutyRateType: calc.dutyCalculation.dutyRateType,
@@ -224,6 +261,12 @@ export async function GET(request: NextRequest) {
                       ftaBenefit: calc.dutyCalculation.ftaBenefit,
                       isDutyFree: calc.dutyCalculation.isDutyFree,
                     }
+                    extractedData.products[calc.productIndex].dutyCalculation = productDutyCalc
+                    console.log(`[API] Product ${calc.productIndex} (${extractedData.products[calc.productIndex].description}):`, {
+                      calculatedDuty: productDutyCalc.calculatedDuty,
+                      currency: productDutyCalc.currency,
+                      dutyRate: productDutyCalc.dutyRate,
+                    })
                   }
                 })
 
@@ -241,13 +284,26 @@ export async function GET(request: NextRequest) {
                   })),
                 }
 
-                console.log(`Calculated duties for ${validDutyCalculations.length} products. Total: ${totalDuties}`)
+                console.log(`✅ [API] Calculated duties for ${validDutyCalculations.length} products. Total: ${totalDuties} ${extractedData.totalDuties.currency}`)
+                console.log(`📊 [API] totalDuties object:`, extractedData.totalDuties)
+                console.log("=== [API] End Duty Calculation Results ===\n")
+              } else {
+                console.warn("⚠️ [API] No valid duty calculations found")
+                console.log("=== [API] End Duty Calculation Results ===\n")
               }
             } catch (dutyCalcError) {
               // Log error but don't fail the document fetch
-              console.error("Error calculating duties for stored document:", dutyCalcError)
+              console.error("❌ [API] Error calculating duties for stored document:", dutyCalcError)
             }
+          } else {
+            console.log("⏭️ [API] Skipping duty calculation:", {
+              incotermIncludesDuties: matchedIncoterm.includes_duties_taxes,
+              hasCalculatedDuties,
+              hasProducts: !!extractedData.products && Array.isArray(extractedData.products),
+              hasGenAI: !!genAI
+            })
           }
+          console.log("=== [API] End Duty Calculation Check ===\n")
         }
         
         return {
@@ -263,6 +319,8 @@ export async function GET(request: NextRequest) {
             fileName: doc.file_name,
           },
           createdAt: doc.created_at,
+          // Include stored HTS codes from document_parsed_data
+          storedHtsCodes: parsedData?.hts_codes || [],
         }
       }) || []
 
