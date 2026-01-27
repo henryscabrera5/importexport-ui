@@ -88,7 +88,10 @@ declare module "jspdf" {
 export default function DashboardPage() {
   const router = useRouter()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<"overview" | "shipments" | "compliance" | "analytics" | "accounting">(
+  const [activeTab, setActiveTab] = useState<"home" | "document_processing" | "orders" | "accounting" | "clients" | "brokers" | "settings">(
+    "home",
+  )
+  const [ordersSubTab, setOrdersSubTab] = useState<"overview" | "shipments" | "compliance" | "analytics" | "accounting">(
     "overview",
   )
   const [htsUpdateVisible, setHtsUpdateVisible] = useState(false)
@@ -123,6 +126,87 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false)
   const fetchingRef = useRef(false) // Prevent multiple simultaneous calls
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // Orders tab state
+  const [orders, setOrders] = useState<any[]>([])
+  const [loadingOrders, setLoadingOrders] = useState(false)
+  const [availableDocuments, setAvailableDocuments] = useState<any[]>([])
+  const [loadingAvailableDocuments, setLoadingAvailableDocuments] = useState(false)
+  const [createOrderDialogOpen, setCreateOrderDialogOpen] = useState(false)
+  const [newOrderNumber, setNewOrderNumber] = useState("")
+  const [newOrderName, setNewOrderName] = useState("")
+  const [selectedDocumentParsedDataId, setSelectedDocumentParsedDataId] = useState<string | null>(null)
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null)
+  const [creatingOrder, setCreatingOrder] = useState(false)
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null)
+  const [editedOrderData, setEditedOrderData] = useState<Record<string, any>>({})
+  const [isSavingOrder, setIsSavingOrder] = useState(false)
+  const [pendingOrderForPdf, setPendingOrderForPdf] = useState<{ order: any } | null>(null)
+  const [totalDuties, setTotalDuties] = useState<{ amount: number; currency: string } | null>(null)
+  const [loadingTotalDuties, setLoadingTotalDuties] = useState(false)
+  const [dutiesBreakdownOpen, setDutiesBreakdownOpen] = useState(false)
+  const [orderDutiesBreakdown, setOrderDutiesBreakdown] = useState<Array<{ orderNumber: string; orderName?: string; amount: number; currency: string }>>([])
+  const [clients, setClients] = useState<Array<{ 
+    name: string
+    address?: string
+    taxId?: string
+    contact?: {
+      phone?: string
+      email?: string
+      fax?: string
+      contactPerson?: string
+    }
+    orders: Array<{ id: string; orderNumber: string; orderName?: string; status: string; orderDate?: string }>
+  }>>([])
+
+  // Home dashboard KPI state
+  const [homeKPIs, setHomeKPIs] = useState<{
+    totalOrders: number
+    openOrders: number
+    closedOrders: number
+    ordersThisMonth: number
+    totalDutiesCost: number
+    dutiesCurrency: string
+    averageOrderValue: number
+    totalShipmentValue: number
+    dutiesThisMonth: number
+    documentsProcessed: number
+    processingSuccessRate: number
+    documentsThisMonth: number
+    pendingProcessing: number
+    activeClients: number
+    newClientsThisMonth: number
+    ordersByStatus: Record<string, number>
+    topOriginCountries: Array<{ country: string; count: number }>
+    topDestinationCountries: Array<{ country: string; count: number }>
+    recentOrders: any[]
+    recentDocuments: ProcessedDocument[]
+    upcomingDeliveries: any[]
+  }>({
+    totalOrders: 0,
+    openOrders: 0,
+    closedOrders: 0,
+    ordersThisMonth: 0,
+    totalDutiesCost: 0,
+    dutiesCurrency: "USD",
+    averageOrderValue: 0,
+    totalShipmentValue: 0,
+    dutiesThisMonth: 0,
+    documentsProcessed: 0,
+    processingSuccessRate: 0,
+    documentsThisMonth: 0,
+    pendingProcessing: 0,
+    activeClients: 0,
+    newClientsThisMonth: 0,
+    ordersByStatus: {},
+    topOriginCountries: [],
+    topDestinationCountries: [],
+    recentOrders: [],
+    recentDocuments: [],
+    upcomingDeliveries: [],
+  })
+  const [loadingKPIs, setLoadingKPIs] = useState(false)
 
   // Fix hydration mismatch by only rendering client-side content after mount
   useEffect(() => {
@@ -254,6 +338,595 @@ export default function DashboardPage() {
   const handleCancelEdit = () => {
     setEditingDocumentId(null)
     setEditedData({})
+  }
+
+  // Order edit functions
+  const handleStartEditOrder = (order: any) => {
+    setEditingOrderId(order.id)
+    // Create a deep copy of the parsed_json for editing
+    setEditedOrderData({
+      [order.id]: JSON.parse(JSON.stringify(order.parsed_json || {}))
+    })
+  }
+
+  const handleCancelEditOrder = () => {
+    setEditingOrderId(null)
+    setEditedOrderData({})
+  }
+
+  const handleSaveEditOrder = async (order: any) => {
+    setIsSavingOrder(true)
+    try {
+      const editedData = editedOrderData[order.id]
+      if (!editedData) {
+        return
+      }
+
+      // Ensure the structure matches what's expected (with extractedData wrapper if needed)
+      let parsedJsonToSave = editedData
+      // If editedData doesn't have extractedData but has invoiceNumber, seller, etc., wrap it
+      if (editedData.invoiceNumber || editedData.seller || editedData.buyer) {
+        if (!editedData.extractedData) {
+          parsedJsonToSave = {
+            ...editedData,
+            extractedData: editedData
+          }
+        }
+      }
+
+      // Update the order's parsed_json in the database
+      const { error } = await supabase
+        .from("orders")
+        .update({ parsed_json: parsedJsonToSave })
+        .eq("id", order.id)
+
+      if (error) throw error
+
+      // Update local state
+      setOrders(orders.map(o => 
+        o.id === order.id 
+          ? { ...o, parsed_json: parsedJsonToSave }
+          : o
+      ))
+
+      setEditingOrderId(null)
+      setEditedOrderData({})
+    } catch (error) {
+      console.error("Error saving order:", error)
+      alert("Failed to save order changes")
+    } finally {
+      setIsSavingOrder(false)
+    }
+  }
+
+  const handleCloseOrder = async (order: any) => {
+    if (!confirm("Are you sure you want to close this order?")) {
+      return
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        alert("You must be logged in to close an order")
+        return
+      }
+
+      const response = await fetch(`/api/orders/${order.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          status: "completed",
+        }),
+      })
+
+      const responseData = await response.json()
+
+      if (!response.ok) {
+        throw new Error(responseData.error || "Failed to close order")
+      }
+
+      const { order: updatedOrder } = responseData
+
+      // Update local state
+      setOrders(orders.map(o => 
+        o.id === order.id 
+          ? { ...o, status: updatedOrder.status }
+          : o
+      ))
+
+      // If the order was expanded, collapse it
+      if (expandedOrderId === order.id) {
+        setExpandedOrderId(null)
+      }
+    } catch (error: any) {
+      console.error("Error closing order:", error)
+      alert(error.message || "Failed to close order")
+    }
+  }
+
+  const handleReopenOrder = async (order: any) => {
+    if (!confirm("Are you sure you want to reopen this order?")) {
+      return
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        alert("You must be logged in to reopen an order")
+        return
+      }
+
+      const response = await fetch(`/api/orders/${order.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          status: "active",
+        }),
+      })
+
+      const responseData = await response.json()
+
+      if (!response.ok) {
+        const errorMessage = responseData.details 
+          ? `${responseData.error}: ${responseData.details}`
+          : responseData.error || "Failed to reopen order"
+        console.error("API Error Response:", responseData)
+        throw new Error(errorMessage)
+      }
+
+      const { order: updatedOrder } = responseData
+
+      // Update local state
+      setOrders(orders.map(o => 
+        o.id === order.id 
+          ? { ...o, status: updatedOrder.status }
+          : o
+      ))
+    } catch (error: any) {
+      console.error("Error reopening order:", error)
+      alert(error.message || "Failed to reopen order")
+    }
+  }
+
+  // Helper function to check if an order is open
+  const isOrderOpen = (order: any) => {
+    return order.status === "draft" || order.status === "pending" || order.status === "active"
+  }
+
+  // Calculate total duties across all orders
+  const calculateTotalDuties = useCallback(() => {
+    if (!orders || orders.length === 0) {
+      setTotalDuties(null)
+      return
+    }
+
+    let totalAmount = 0
+    let currency = "USD" // Default currency
+
+    orders.forEach((order: any) => {
+      const parsedJson = order.parsed_json || {}
+      const extractedData = parsedJson.extractedData || parsedJson || {}
+
+      // Check for totalDuties at the document level
+      if (extractedData.totalDuties && extractedData.totalDuties.amount) {
+        totalAmount += extractedData.totalDuties.amount
+        if (extractedData.totalDuties.currency) {
+          currency = extractedData.totalDuties.currency
+        }
+      } else {
+        // Fallback: calculate from individual products
+        const products = extractedData.products || []
+        products.forEach((product: any) => {
+          if (product.dutyCalculation && product.dutyCalculation.calculatedDuty) {
+            totalAmount += product.dutyCalculation.calculatedDuty
+            if (product.dutyCalculation.currency) {
+              currency = product.dutyCalculation.currency
+            }
+          }
+        })
+
+        // Also check dutyCalculations array
+        if (extractedData.dutyCalculations && Array.isArray(extractedData.dutyCalculations)) {
+          extractedData.dutyCalculations.forEach((duty: any) => {
+            if (duty.calculatedDuty && !duty.isDutyFree) {
+              totalAmount += duty.calculatedDuty
+              if (duty.currency) {
+                currency = duty.currency
+              }
+            }
+          })
+        }
+      }
+    })
+
+    setTotalDuties({ amount: totalAmount, currency })
+  }, [orders])
+
+  // Calculate duties breakdown per order
+  const calculateOrderDutiesBreakdown = useCallback(() => {
+    if (!orders || orders.length === 0) {
+      setOrderDutiesBreakdown([])
+      return
+    }
+
+    const breakdown: Array<{ orderNumber: string; orderName?: string; amount: number; currency: string }> = []
+
+    orders.forEach((order: any) => {
+      const parsedJson = order.parsed_json || {}
+      const extractedData = parsedJson.extractedData || parsedJson || {}
+      let orderAmount = 0
+      let currency = "USD" // Default currency
+
+      // Check for totalDuties at the document level
+      if (extractedData.totalDuties && extractedData.totalDuties.amount) {
+        orderAmount = extractedData.totalDuties.amount
+        if (extractedData.totalDuties.currency) {
+          currency = extractedData.totalDuties.currency
+        }
+      } else {
+        // Fallback: calculate from individual products
+        const products = extractedData.products || []
+        products.forEach((product: any) => {
+          if (product.dutyCalculation && product.dutyCalculation.calculatedDuty) {
+            orderAmount += product.dutyCalculation.calculatedDuty
+            if (product.dutyCalculation.currency) {
+              currency = product.dutyCalculation.currency
+            }
+          }
+        })
+
+        // Also check dutyCalculations array
+        if (extractedData.dutyCalculations && Array.isArray(extractedData.dutyCalculations)) {
+          extractedData.dutyCalculations.forEach((duty: any) => {
+            if (duty.calculatedDuty && !duty.isDutyFree) {
+              orderAmount += duty.calculatedDuty
+              if (duty.currency) {
+                currency = duty.currency
+              }
+            }
+          })
+        }
+      }
+
+      if (orderAmount > 0 || extractedData.totalDuties?.amount === 0) {
+        breakdown.push({
+          orderNumber: order.order_number,
+          orderName: order.order_name,
+          amount: orderAmount,
+          currency,
+        })
+      }
+    })
+
+    // Sort by amount descending
+    breakdown.sort((a, b) => b.amount - a.amount)
+    setOrderDutiesBreakdown(breakdown)
+  }, [orders])
+
+  const handleOpenDutiesBreakdown = () => {
+    calculateOrderDutiesBreakdown()
+    setDutiesBreakdownOpen(true)
+  }
+
+  // Extract and group clients from orders
+  const extractClientsFromOrders = useCallback(() => {
+    if (!orders || orders.length === 0) {
+      setClients([])
+      return
+    }
+
+    const clientsMap = new Map<string, {
+      name: string
+      address?: string
+      taxId?: string
+      contact?: {
+        phone?: string
+        email?: string
+        fax?: string
+        contactPerson?: string
+      }
+      orders: Array<{ id: string; orderNumber: string; orderName?: string; status: string; orderDate?: string }>
+    }>()
+
+    orders.forEach((order: any) => {
+      const parsedJson = order.parsed_json || {}
+      const extractedData = parsedJson.extractedData || parsedJson || {}
+      const buyer = extractedData.buyer
+
+      if (buyer && buyer.name) {
+        const clientKey = buyer.name.toLowerCase().trim()
+        
+        if (!clientsMap.has(clientKey)) {
+          clientsMap.set(clientKey, {
+            name: buyer.name,
+            address: buyer.address,
+            taxId: buyer.taxId,
+            contact: buyer.contact,
+            orders: [],
+          })
+        }
+
+        const client = clientsMap.get(clientKey)!
+        client.orders.push({
+          id: order.id,
+          orderNumber: order.order_number,
+          orderName: order.order_name,
+          status: order.status,
+          orderDate: order.order_date,
+        })
+      }
+    })
+
+    // Convert map to array and sort by client name
+    const clientsArray = Array.from(clientsMap.values()).sort((a, b) => 
+      a.name.localeCompare(b.name)
+    )
+
+    setClients(clientsArray)
+  }, [orders])
+
+  // Calculate all KPIs for home dashboard
+  const calculateHomeKPIs = useCallback(() => {
+    if (!orders || orders.length === 0) {
+      setHomeKPIs({
+        totalOrders: 0,
+        openOrders: 0,
+        closedOrders: 0,
+        ordersThisMonth: 0,
+        totalDutiesCost: 0,
+        dutiesCurrency: "USD",
+        averageOrderValue: 0,
+        totalShipmentValue: 0,
+        dutiesThisMonth: 0,
+        documentsProcessed: processedDocuments.length,
+        processingSuccessRate: processedDocuments.length > 0 ? 100 : 0,
+        documentsThisMonth: 0,
+        pendingProcessing: 0,
+        activeClients: clients.length,
+        newClientsThisMonth: 0,
+        ordersByStatus: {},
+        topOriginCountries: [],
+        topDestinationCountries: [],
+        recentOrders: [],
+        recentDocuments: processedDocuments.slice(0, 5),
+        upcomingDeliveries: [],
+      })
+      return
+    }
+
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+
+    // Order metrics
+    const totalOrders = orders.length
+    const openOrders = orders.filter((o: any) => isOrderOpen(o)).length
+    const closedOrders = orders.filter((o: any) => o.status === "completed" || o.status === "cancelled").length
+    const ordersThisMonth = orders.filter((o: any) => {
+      const orderDate = o.order_date ? new Date(o.order_date) : new Date(o.created_at)
+      return orderDate >= startOfMonth
+    }).length
+
+    // Financial metrics
+    let totalDutiesCost = 0
+    let dutiesCurrency = "USD"
+    let totalShipmentValue = 0
+    let dutiesThisMonth = 0
+    let orderValues: number[] = []
+
+    orders.forEach((order: any) => {
+      const parsedJson = order.parsed_json || {}
+      const extractedData = parsedJson.extractedData || parsedJson || {}
+      
+      // Calculate duties
+      let orderDuties = 0
+      if (extractedData.totalDuties && extractedData.totalDuties.amount) {
+        orderDuties = extractedData.totalDuties.amount
+        if (extractedData.totalDuties.currency) {
+          dutiesCurrency = extractedData.totalDuties.currency
+        }
+      } else {
+        const products = extractedData.products || []
+        products.forEach((product: any) => {
+          if (product.dutyCalculation && product.dutyCalculation.calculatedDuty) {
+            orderDuties += product.dutyCalculation.calculatedDuty
+            if (product.dutyCalculation.currency) {
+              dutiesCurrency = product.dutyCalculation.currency
+            }
+          }
+        })
+        if (extractedData.dutyCalculations && Array.isArray(extractedData.dutyCalculations)) {
+          extractedData.dutyCalculations.forEach((duty: any) => {
+            if (duty.calculatedDuty && !duty.isDutyFree) {
+              orderDuties += duty.calculatedDuty
+              if (duty.currency) {
+                dutiesCurrency = duty.currency
+              }
+            }
+          })
+        }
+      }
+      totalDutiesCost += orderDuties
+
+      // Check if order is from this month for duties calculation
+      const orderDate = order.order_date ? new Date(order.order_date) : new Date(order.created_at)
+      if (orderDate >= startOfMonth) {
+        dutiesThisMonth += orderDuties
+      }
+
+      // Calculate shipment value
+      const invoiceTotal = extractedData.invoiceTotal || extractedData.totalAmount || extractedData.totalValue
+      if (invoiceTotal && typeof invoiceTotal === 'number') {
+        totalShipmentValue += invoiceTotal
+        orderValues.push(invoiceTotal)
+      } else {
+        // Fallback: sum product values
+        const products = extractedData.products || []
+        let orderValue = 0
+        products.forEach((product: any) => {
+          const productValue = product.totalPrice || product.total_price || (product.unitPrice || product.unit_price || 0) * (product.quantity || 0)
+          if (productValue && typeof productValue === 'number') {
+            orderValue += productValue
+          }
+        })
+        if (orderValue > 0) {
+          totalShipmentValue += orderValue
+          orderValues.push(orderValue)
+        }
+      }
+    })
+
+    const averageOrderValue = orderValues.length > 0 ? totalShipmentValue / orderValues.length : 0
+
+    // Document processing metrics
+    const documentsProcessed = processedDocuments.length
+    const documentsThisMonth = processedDocuments.filter((doc: any) => {
+      const docDate = doc.created_at ? new Date(doc.created_at) : new Date()
+      return docDate >= startOfMonth
+    }).length
+    const processingSuccessRate = documentsProcessed > 0 ? 100 : 0 // Assuming all processed documents are successful
+    const pendingProcessing = 0 // Could be enhanced to check document status
+
+    // Client metrics
+    const activeClients = clients.length
+    const newClientsThisMonth = clients.filter((client) => {
+      const clientOrders = client.orders || []
+      if (clientOrders.length === 0) return false
+      const firstOrderDate = clientOrders[0].orderDate ? new Date(clientOrders[0].orderDate) : null
+      return firstOrderDate && firstOrderDate >= startOfMonth
+    }).length
+
+    // Orders by status
+    const ordersByStatus: Record<string, number> = {}
+    orders.forEach((order: any) => {
+      const status = order.status || "unknown"
+      ordersByStatus[status] = (ordersByStatus[status] || 0) + 1
+    })
+
+    // Top origin and destination countries
+    const originCounts = new Map<string, number>()
+    const destCounts = new Map<string, number>()
+
+    orders.forEach((order: any) => {
+      const parsedJson = order.parsed_json || {}
+      const extractedData = parsedJson.extractedData || parsedJson || {}
+      const shipmentInfo = extractedData.shipmentInfo || {}
+
+      const origin = shipmentInfo.originCountry || shipmentInfo.origin_country || extractedData.originCountry
+      const destination = shipmentInfo.destinationCountry || shipmentInfo.destination_country || extractedData.destinationCountry
+
+      if (origin) {
+        originCounts.set(origin, (originCounts.get(origin) || 0) + 1)
+      }
+      if (destination) {
+        destCounts.set(destination, (destCounts.get(destination) || 0) + 1)
+      }
+    })
+
+    const topOriginCountries = Array.from(originCounts.entries())
+      .map(([country, count]) => ({ country, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+
+    const topDestinationCountries = Array.from(destCounts.entries())
+      .map(([country, count]) => ({ country, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5)
+
+    // Recent orders (last 5)
+    const recentOrders = [...orders]
+      .sort((a, b) => {
+        const dateA = a.order_date ? new Date(a.order_date) : new Date(a.created_at)
+        const dateB = b.order_date ? new Date(b.order_date) : new Date(b.created_at)
+        return dateB.getTime() - dateA.getTime()
+      })
+      .slice(0, 5)
+
+    // Recent documents (last 5)
+    const recentDocuments = [...processedDocuments]
+      .sort((a: any, b: any) => {
+        const dateA = a.created_at ? new Date(a.created_at) : new Date()
+        const dateB = b.created_at ? new Date(b.created_at) : new Date()
+        return dateB.getTime() - dateA.getTime()
+      })
+      .slice(0, 5)
+
+    // Upcoming deliveries (orders with expected_delivery_date in the future)
+    const upcomingDeliveries = orders
+      .filter((order: any) => {
+        if (!order.expected_delivery_date) return false
+        const deliveryDate = new Date(order.expected_delivery_date)
+        return deliveryDate >= now
+      })
+      .sort((a: any, b: any) => {
+        const dateA = new Date(a.expected_delivery_date)
+        const dateB = new Date(b.expected_delivery_date)
+        return dateA.getTime() - dateB.getTime()
+      })
+      .slice(0, 5)
+
+    setHomeKPIs({
+      totalOrders,
+      openOrders,
+      closedOrders,
+      ordersThisMonth,
+      totalDutiesCost,
+      dutiesCurrency,
+      averageOrderValue,
+      totalShipmentValue,
+      dutiesThisMonth,
+      documentsProcessed,
+      processingSuccessRate,
+      documentsThisMonth,
+      pendingProcessing,
+      activeClients,
+      newClientsThisMonth,
+      ordersByStatus,
+      topOriginCountries,
+      topDestinationCountries,
+      recentOrders,
+      recentDocuments,
+      upcomingDeliveries,
+    })
+  }, [orders, processedDocuments, clients, isOrderOpen])
+
+  const openOrderPdfTemplateSelector = (order: any) => {
+    setPendingOrderForPdf({ order })
+    setPdfTemplateOpen(true)
+  }
+
+  const generateOrderPDF = async (order: any, template: string = selectedPdfTemplate) => {
+    setGeneratingPdf(true)
+    setPdfTemplateOpen(false)
+    try {
+      // Convert order data to ProcessedDocument format for PDF generation
+      const parsedJson = order.parsed_json || {}
+      const extractedData = parsedJson.extractedData || parsedJson
+      
+      const docForPdf: any = {
+        documentId: order.id,
+        documentType: parsedJson.documentType || "commercial_invoice",
+        extractedData: extractedData,
+        confidence: 1.0, // Orders are already processed
+        file_name: order.documents?.[0]?.file_name || `Order-${order.order_number}.pdf`,
+        file_type: "application/pdf",
+        file_size: 0,
+      }
+
+      await generatePDF(docForPdf as ProcessedDocument, 0, template)
+    } catch (error) {
+      console.error("Error generating order PDF:", error)
+      alert("Failed to generate PDF")
+    } finally {
+      setGeneratingPdf(false)
+      setPendingOrderForPdf(null)
+    }
   }
 
   const handleSaveEdit = async (docIndex: number, doc: ProcessedDocument) => {
@@ -1074,6 +1747,181 @@ export default function DashboardPage() {
     }
   }, [])
 
+  // Fetch orders for the Orders tab
+  const fetchOrders = useCallback(async () => {
+    if (!user) return
+
+    setLoadingOrders(true)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        setLoadingOrders(false)
+        return
+      }
+
+      const response = await fetch("/api/orders", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setOrders(data.orders || [])
+      } else {
+        console.error("Failed to fetch orders")
+      }
+    } catch (error) {
+      console.error("Error fetching orders:", error)
+    } finally {
+      setLoadingOrders(false)
+    }
+  }, [user])
+
+  // Fetch available processed documents for order assignment
+  const fetchAvailableDocuments = useCallback(async () => {
+    if (!user) return
+
+    setLoadingAvailableDocuments(true)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        setLoadingAvailableDocuments(false)
+        return
+      }
+
+      const response = await fetch("/api/documents/processed", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setAvailableDocuments(data.documents || [])
+      } else {
+        console.error("Failed to fetch available documents")
+      }
+    } catch (error) {
+      console.error("Error fetching available documents:", error)
+    } finally {
+      setLoadingAvailableDocuments(false)
+    }
+  }, [user])
+
+  // Create a new order
+  const handleCreateOrder = async () => {
+    if (!newOrderNumber.trim()) {
+      alert("Please enter an order number")
+      return
+    }
+
+    if (!selectedDocumentParsedDataId) {
+      alert("Please select a document to assign to this order")
+      return
+    }
+
+    setCreatingOrder(true)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        alert("Please log in to create an order")
+        setCreatingOrder(false)
+        return
+      }
+
+      const response = await fetch("/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          order_number: newOrderNumber.trim(),
+          order_name: newOrderName.trim() || null,
+          document_parsed_data_id: selectedDocumentParsedDataId,
+          document_id: selectedDocumentId,
+          status: "draft",
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setOrders([data.order, ...orders])
+        setCreateOrderDialogOpen(false)
+        setNewOrderNumber("")
+        setNewOrderName("")
+        setSelectedDocumentParsedDataId(null)
+        setSelectedDocumentId(null)
+        alert("Order created successfully!")
+      } else {
+        const errorData = await response.json().catch(() => ({ error: "Failed to create order" }))
+        const errorMessage = errorData.error || errorData.details || "Failed to create order"
+        console.error("Order creation error:", errorData)
+        alert(`${errorMessage}${errorData.details ? `\n\nDetails: ${errorData.details}` : ""}`)
+      }
+    } catch (error: any) {
+      console.error("Error creating order:", error)
+      alert("Failed to create order: " + error.message)
+    } finally {
+      setCreatingOrder(false)
+    }
+  }
+
+  // Fetch orders and available documents when Orders tab is active
+  useEffect(() => {
+    if (activeTab === "orders" && user) {
+      fetchOrders()
+      fetchAvailableDocuments()
+    }
+  }, [activeTab, user, fetchOrders, fetchAvailableDocuments])
+
+  // Calculate total duties when orders change or accounting tab is active
+  useEffect(() => {
+    if (activeTab === "accounting" && orders.length > 0) {
+      calculateTotalDuties()
+      calculateOrderDutiesBreakdown()
+    } else if (activeTab === "accounting" && orders.length === 0) {
+      // Fetch orders if accounting tab is active but no orders loaded
+      if (user) {
+        fetchOrders()
+      }
+    }
+  }, [activeTab, orders, calculateTotalDuties, calculateOrderDutiesBreakdown, user, fetchOrders])
+
+  // Extract clients when orders change or clients tab is active
+  useEffect(() => {
+    if (activeTab === "clients" && orders.length > 0) {
+      extractClientsFromOrders()
+    } else if (activeTab === "clients" && orders.length === 0) {
+      // Fetch orders if clients tab is active but no orders loaded
+      if (user) {
+        fetchOrders()
+      }
+    }
+  }, [activeTab, orders, extractClientsFromOrders, user, fetchOrders])
+
+  // Calculate home KPIs when home tab is active or when data changes
+  useEffect(() => {
+    if (activeTab === "home") {
+      if (orders.length === 0 && user) {
+        // Fetch orders if home tab is active but no orders loaded
+        fetchOrders()
+      } else {
+        calculateHomeKPIs()
+      }
+    }
+  }, [activeTab, orders, processedDocuments, clients, user, fetchOrders, calculateHomeKPIs])
+
   useEffect(() => {
     let mounted = true
 
@@ -1185,7 +2033,10 @@ export default function DashboardPage() {
     setNewUpdatesCount(0)
     setTimeout(() => {
       setIsRefreshing(false)
+      // Only set random count on client side to avoid hydration mismatch
+      if (mounted) {
       setNewUpdatesCount(Math.floor(Math.random() * 5) + 1)
+      }
     }, 2000)
   }
 
@@ -1382,58 +2233,496 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+    <div className="min-h-screen bg-white flex w-full max-w-full overflow-x-hidden">
+      {/* Left Sidebar Navigation */}
+      <div className="w-64 bg-gray-50 border-r border-gray-200 flex flex-col h-screen sticky top-0">
+        {/* Logo */}
+        <div className="p-6 border-b border-gray-200">
+          <Link href="/" prefetch={false} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
               <Image
                 src="/images/swiftdocks-logo.png"
                 alt="SwiftDocks"
-                width={320}
-                height={92}
-                className="h-16 w-auto"
-              />
-              <span className="text-2xl font-bold text-[#2C3E50] hidden sm:block">SwiftDocks</span>
+              width={200}
+              height={60}
+              className="h-12 w-auto"
+            />
             </Link>
-
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center gap-4">
-              <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg">
-                <User className="h-4 w-4 text-gray-600" />
-                <span className="text-sm text-gray-700">{user.email}</span>
-              </div>
-              <Button variant="outline" onClick={handleLogout} className="gap-2">
-                <LogOut className="h-4 w-4" />
-                Log Out
-              </Button>
             </div>
 
-            {/* Mobile Menu Button */}
-            <button className="md:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-              {mobileMenuOpen ? <X /> : <Menu />}
+        {/* Navigation Tabs */}
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+          <button
+            onClick={() => setActiveTab("home")}
+            className={`w-full p-3 rounded-lg font-medium text-left transition-all hover:scale-105 ${
+              activeTab === "home"
+                ? "bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-lg"
+                : "hover:bg-gray-100 text-gray-700"
+            }`}
+          >
+            Home
             </button>
-          </div>
+          <button
+            onClick={() => setActiveTab("document_processing")}
+            className={`w-full p-3 rounded-lg font-medium text-left transition-all hover:scale-105 ${
+              activeTab === "document_processing"
+                ? "bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-lg"
+                : "hover:bg-gray-100 text-gray-700"
+            }`}
+          >
+            Document Processing
+          </button>
+          <button
+            onClick={() => setActiveTab("orders")}
+            className={`w-full p-3 rounded-lg font-medium text-left transition-all hover:scale-105 ${
+              activeTab === "orders"
+                ? "bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-lg"
+                : "hover:bg-gray-100 text-gray-700"
+            }`}
+          >
+            Orders
+          </button>
+          <button
+            onClick={() => setActiveTab("accounting")}
+            className={`w-full p-3 rounded-lg font-medium text-left transition-all hover:scale-105 ${
+              activeTab === "accounting"
+                ? "bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-lg"
+                : "hover:bg-gray-100 text-gray-700"
+            }`}
+          >
+            Accounting
+          </button>
+          <button
+            onClick={() => setActiveTab("clients")}
+            className={`w-full p-3 rounded-lg font-medium text-left transition-all hover:scale-105 ${
+              activeTab === "clients"
+                ? "bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-lg"
+                : "hover:bg-gray-100 text-gray-700"
+            }`}
+          >
+            Clients
+          </button>
+          <button
+            onClick={() => setActiveTab("brokers")}
+            className={`w-full p-3 rounded-lg font-medium text-left transition-all hover:scale-105 ${
+              activeTab === "brokers"
+                ? "bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-lg"
+                : "hover:bg-gray-100 text-gray-700"
+            }`}
+          >
+            Brokers
+          </button>
+          <button
+            onClick={() => setActiveTab("settings")}
+            className={`w-full p-3 rounded-lg font-medium text-left transition-all hover:scale-105 ${
+              activeTab === "settings"
+                ? "bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-lg"
+                : "hover:bg-gray-100 text-gray-700"
+            }`}
+          >
+            Settings
+          </button>
+        </nav>
 
-          {/* Mobile Menu */}
-          {mobileMenuOpen && (
-            <div className="md:hidden py-4 space-y-4 animate-in fade-in slide-in-from-top-2">
-              <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg">
+        {/* User Info & Logout */}
+        <div className="p-4 border-t border-gray-200">
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg mb-3">
                 <User className="h-4 w-4 text-gray-600" />
-                <span className="text-sm text-gray-700">{user.email}</span>
+            <span className="text-sm text-gray-700 truncate">{user.email}</span>
               </div>
               <Button variant="outline" onClick={handleLogout} className="w-full gap-2">
                 <LogOut className="h-4 w-4" />
                 Log Out
               </Button>
             </div>
-          )}
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-h-screen min-w-0">
+        {/* Top Navigation Bar */}
+        <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200">
+          <div className="px-6 py-4">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold text-gray-900">
+                {activeTab === "home" && "Home"}
+                {activeTab === "document_processing" && "Document Processing"}
+                {activeTab === "orders" && "Orders"}
+                {activeTab === "accounting" && "Accounting"}
+                {activeTab === "clients" && "Clients"}
+                {activeTab === "brokers" && "Brokers"}
+                {activeTab === "settings" && "Settings"}
+              </h1>
+            </div>
         </div>
       </nav>
 
-      {/* Dashboard Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        {/* Tab Content */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 w-full">
+          {activeTab === "home" && (
+            <div className="p-6 space-y-6 overflow-y-auto">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Dashboard Overview</h2>
+                  <p className="text-sm text-gray-500 mt-1">Business metrics and recent activity</p>
+                </div>
+                <Button
+                  onClick={() => {
+                    if (orders.length === 0 && user) {
+                      fetchOrders()
+                    }
+                    calculateHomeKPIs()
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                >
+                  <RefreshCw className="h-3 w-3 mr-2" />
+                  Refresh
+                </Button>
+              </div>
+
+              {/* Order Metrics */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-3 uppercase tracking-wide">Order Metrics</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <Card className="p-4 border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Total Orders</p>
+                        <p className="text-xl font-semibold text-gray-900">{homeKPIs.totalOrders}</p>
+                      </div>
+                      <Package className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </Card>
+                  <Card className="p-4 border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Open Orders</p>
+                        <p className="text-xl font-semibold text-gray-900">{homeKPIs.openOrders}</p>
+                      </div>
+                      <CheckCircle className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </Card>
+                  <Card className="p-4 border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Closed Orders</p>
+                        <p className="text-xl font-semibold text-gray-900">{homeKPIs.closedOrders}</p>
+                      </div>
+                      <XCircle className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </Card>
+                  <Card className="p-4 border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Orders This Month</p>
+                        <p className="text-xl font-semibold text-gray-900">{homeKPIs.ordersThisMonth}</p>
+                      </div>
+                      <TrendingUp className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </Card>
+                </div>
+              </div>
+
+              {/* Financial Metrics */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-3 uppercase tracking-wide">Financial Metrics</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <Card className="p-4 border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Total Duties Cost</p>
+                        <p className="text-xl font-semibold text-gray-900">
+                          {homeKPIs.dutiesCurrency} {homeKPIs.totalDutiesCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <DollarSign className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </Card>
+                  <Card className="p-4 border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Average Order Value</p>
+                        <p className="text-xl font-semibold text-gray-900">
+                          {homeKPIs.dutiesCurrency} {homeKPIs.averageOrderValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <BarChart3 className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </Card>
+                  <Card className="p-4 border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Total Shipment Value</p>
+                        <p className="text-xl font-semibold text-gray-900">
+                          {homeKPIs.dutiesCurrency} {homeKPIs.totalShipmentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <Ship className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </Card>
+                  <Card className="p-4 border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Duties This Month</p>
+                        <p className="text-xl font-semibold text-gray-900">
+                          {homeKPIs.dutiesCurrency} {homeKPIs.dutiesThisMonth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                      <Calculator className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </Card>
+                </div>
+              </div>
+
+              {/* Document Processing Metrics */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-3 uppercase tracking-wide">Document Processing</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <Card className="p-4 border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Documents Processed</p>
+                        <p className="text-xl font-semibold text-gray-900">{homeKPIs.documentsProcessed}</p>
+                      </div>
+                      <FileText className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </Card>
+                  <Card className="p-4 border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Success Rate</p>
+                        <p className="text-xl font-semibold text-gray-900">{homeKPIs.processingSuccessRate.toFixed(1)}%</p>
+                      </div>
+                      <CheckCircle className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </Card>
+                  <Card className="p-4 border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Documents This Month</p>
+                        <p className="text-xl font-semibold text-gray-900">{homeKPIs.documentsThisMonth}</p>
+                      </div>
+                      <TrendingUp className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </Card>
+                  <Card className="p-4 border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Pending Processing</p>
+                        <p className="text-xl font-semibold text-gray-900">{homeKPIs.pendingProcessing}</p>
+                      </div>
+                      <Clock className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </Card>
+                </div>
+              </div>
+
+              {/* Client Metrics */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 mb-3 uppercase tracking-wide">Client Metrics</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card className="p-4 border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">Active Clients</p>
+                        <p className="text-xl font-semibold text-gray-900">{homeKPIs.activeClients}</p>
+                      </div>
+                      <User className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </Card>
+                  <Card className="p-4 border border-gray-200 hover:border-gray-300 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1">New Clients This Month</p>
+                        <p className="text-xl font-semibold text-gray-900">{homeKPIs.newClientsThisMonth}</p>
+                      </div>
+                      <TrendingUp className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </Card>
+                </div>
+              </div>
+
+              {/* Two Column Layout for Additional Metrics */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Orders by Status */}
+                <Card className="p-5 border border-gray-200">
+                  <h3 className="text-sm font-medium text-gray-700 mb-4 uppercase tracking-wide flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4 text-gray-400" />
+                    Orders by Status
+                  </h3>
+                  <div className="space-y-3">
+                    {Object.entries(homeKPIs.ordersByStatus).map(([status, count]) => (
+                      <div key={status} className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-gray-600 capitalize">{status}</span>
+                        <div className="flex items-center gap-3">
+                          <div className="w-32 bg-gray-100 rounded-full h-1.5">
+                            <div
+                              className="h-1.5 rounded-full bg-gray-400"
+                              style={{ width: `${(count / homeKPIs.totalOrders) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-semibold text-gray-900 w-6 text-right">{count}</span>
+                        </div>
+                      </div>
+                    ))}
+                    {Object.keys(homeKPIs.ordersByStatus).length === 0 && (
+                      <p className="text-xs text-gray-500 text-center py-4">No orders yet</p>
+                    )}
+                  </div>
+                </Card>
+
+                {/* Top Countries */}
+                <Card className="p-5 border border-gray-200">
+                  <h3 className="text-sm font-medium text-gray-700 mb-4 uppercase tracking-wide flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-gray-400" />
+                    Top Countries
+                  </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-xs font-medium text-gray-600 mb-2">Top Origin Countries</p>
+                      <div className="space-y-2">
+                        {homeKPIs.topOriginCountries.length > 0 ? (
+                          homeKPIs.topOriginCountries.map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-xs">
+                              <span className="text-gray-600">{item.country}</span>
+                              <span className="font-medium text-gray-900">{item.count} orders</span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-gray-500">No data available</p>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-gray-600 mb-2">Top Destination Countries</p>
+                      <div className="space-y-2">
+                        {homeKPIs.topDestinationCountries.length > 0 ? (
+                          homeKPIs.topDestinationCountries.map((item, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-xs">
+                              <span className="text-gray-600">{item.country}</span>
+                              <span className="font-medium text-gray-900">{item.count} orders</span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-gray-500">No data available</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+
+              {/* Recent Activity */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Recent Orders */}
+                <Card className="p-5 border border-gray-200">
+                  <h3 className="text-sm font-medium text-gray-700 mb-4 uppercase tracking-wide flex items-center gap-2">
+                    <Package className="h-4 w-4 text-gray-400" />
+                    Recent Orders
+                  </h3>
+                  <div className="space-y-2">
+                    {homeKPIs.recentOrders.length > 0 ? (
+                      homeKPIs.recentOrders.map((order: any) => (
+                        <div
+                          key={order.id}
+                          className="p-2.5 border border-gray-100 rounded hover:border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
+                          onClick={() => {
+                            setActiveTab("orders")
+                            setExpandedOrderId(order.id)
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium text-xs text-gray-900">{order.order_number}</p>
+                              {order.order_name && (
+                                <p className="text-xs text-gray-500 mt-0.5">{order.order_name}</p>
+                              )}
+                            </div>
+                            <span className={`text-xs px-1.5 py-0.5 rounded ${
+                              order.status === "completed" ? "bg-gray-100 text-gray-700" :
+                              order.status === "active" ? "bg-gray-100 text-gray-700" :
+                              order.status === "pending" ? "bg-gray-100 text-gray-700" :
+                              "bg-gray-100 text-gray-700"
+                            }`}>
+                              {order.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-gray-500 text-center py-4">No recent orders</p>
+                    )}
+                  </div>
+                </Card>
+
+                {/* Recent Documents */}
+                <Card className="p-5 border border-gray-200">
+                  <h3 className="text-sm font-medium text-gray-700 mb-4 uppercase tracking-wide flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-gray-400" />
+                    Recent Documents
+                  </h3>
+                  <div className="space-y-2">
+                    {homeKPIs.recentDocuments.length > 0 ? (
+                      homeKPIs.recentDocuments.map((doc: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="p-2.5 border border-gray-100 rounded hover:border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
+                          onClick={() => setActiveTab("document_processing")}
+                        >
+                          <p className="font-medium text-xs text-gray-900">
+                            {doc.file_name || doc.documentType || "Document"}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {doc.documentType || "Unknown type"}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-gray-500 text-center py-4">No recent documents</p>
+                    )}
+                  </div>
+                </Card>
+
+                {/* Upcoming Deliveries */}
+                <Card className="p-5 border border-gray-200">
+                  <h3 className="text-sm font-medium text-gray-700 mb-4 uppercase tracking-wide flex items-center gap-2">
+                    <Ship className="h-4 w-4 text-gray-400" />
+                    Upcoming Deliveries
+                  </h3>
+                  <div className="space-y-2">
+                    {homeKPIs.upcomingDeliveries.length > 0 ? (
+                      homeKPIs.upcomingDeliveries.map((order: any) => (
+                        <div
+                          key={order.id}
+                          className="p-2.5 border border-gray-100 rounded hover:border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors"
+                          onClick={() => {
+                            setActiveTab("orders")
+                            setExpandedOrderId(order.id)
+                          }}
+                        >
+                          <div>
+                            <p className="font-medium text-xs text-gray-900">{order.order_number}</p>
+                            {order.expected_delivery_date && (
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                {mounted ? new Date(order.expected_delivery_date).toLocaleDateString() : order.expected_delivery_date}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-gray-500 text-center py-4">No upcoming deliveries</p>
+                    )}
+                  </div>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "document_processing" && (
+            <div className="p-6 space-y-6">
+              {/* All Current Dashboard Content */}
         {/* Drag and Drop Upload Section */}
         <Card className="p-6 shadow-xl">
           <div className="flex items-center justify-between mb-4">
@@ -3120,65 +4409,26 @@ export default function DashboardPage() {
             </Button>
           </div>
 
-          <div className="grid lg:grid-cols-4 gap-6">
-            {/* Sidebar Navigation */}
-            <div className="space-y-2">
+          <div className="space-y-6">
+            {/* Orders Sub-Navigation */}
+            <div className="flex gap-2 border-b border-gray-200 pb-2">
+              {(["overview", "shipments", "compliance", "analytics", "accounting"] as const).map((tab) => (
               <button
-                onClick={() => setActiveTab("overview")}
-                className={`w-full p-3 rounded-lg font-medium text-left transition-all hover:scale-105 ${
-                  activeTab === "overview"
-                    ? "bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-lg"
-                    : "hover:bg-gray-100"
-                }`}
-              >
-                Overview
+                  key={tab}
+                  onClick={() => setOrdersSubTab(tab)}
+                  className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-all ${
+                    ordersSubTab === tab
+                      ? "bg-gradient-to-r from-blue-600 to-teal-600 text-white"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  }`}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
               </button>
-              <button
-                onClick={() => setActiveTab("shipments")}
-                className={`w-full p-3 rounded-lg font-medium text-left transition-all hover:scale-105 ${
-                  activeTab === "shipments"
-                    ? "bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-lg"
-                    : "hover:bg-gray-100"
-                }`}
-              >
-                Shipments
-              </button>
-              <button
-                onClick={() => setActiveTab("compliance")}
-                className={`w-full p-3 rounded-lg font-medium text-left transition-all hover:scale-105 ${
-                  activeTab === "compliance"
-                    ? "bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-lg"
-                    : "hover:bg-gray-100"
-                }`}
-              >
-                Compliance
-              </button>
-              <button
-                onClick={() => setActiveTab("analytics")}
-                className={`w-full p-3 rounded-lg font-medium text-left transition-all hover:scale-105 ${
-                  activeTab === "analytics"
-                    ? "bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-lg"
-                    : "hover:bg-gray-100"
-                }`}
-              >
-                Analytics
-              </button>
-              <button
-                onClick={() => setActiveTab("accounting")}
-                className={`w-full p-3 rounded-lg font-medium text-left transition-all hover:scale-105 ${
-                  activeTab === "accounting"
-                    ? "bg-gradient-to-r from-blue-600 to-teal-600 text-white shadow-lg"
-                    : "hover:bg-gray-100"
-                }`}
-              >
-                Accounting
-              </button>
+              ))}
             </div>
 
-            {/* Main Content Area */}
-            <div className="lg:col-span-3 space-y-6">
               {/* Overview Tab */}
-              {activeTab === "overview" && (
+            {ordersSubTab === "overview" && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right duration-300">
                   {/* Key Metrics */}
                   <div className="grid md:grid-cols-4 gap-4">
@@ -3316,7 +4566,7 @@ export default function DashboardPage() {
               )}
 
               {/* Shipments Tab */}
-              {activeTab === "shipments" && (
+                  {ordersSubTab === "shipments" && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right duration-300">
                   <Card className="p-6">
                     <div className="flex items-center justify-between mb-4">
@@ -3417,7 +4667,7 @@ export default function DashboardPage() {
               )}
 
               {/* Compliance Tab */}
-              {activeTab === "compliance" && (
+                  {ordersSubTab === "compliance" && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right duration-300">
                   <Card className="p-6 hover:shadow-xl transition-all">
                     <div className="flex items-center justify-between mb-4">
@@ -3489,7 +4739,7 @@ export default function DashboardPage() {
               )}
 
               {/* Analytics Tab */}
-              {activeTab === "analytics" && (
+                  {ordersSubTab === "analytics" && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right duration-300">
                   <Card className="p-6 hover:shadow-xl transition-all">
                     <h3 className="font-semibold text-lg mb-6">Performance Metrics</h3>
@@ -3511,8 +4761,8 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {/* Accounting Tab */}
-              {activeTab === "accounting" && (
+                  {/* Accounting Tab (Sub) */}
+                  {ordersSubTab === "accounting" && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right duration-300">
                   <Card className="p-6 bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
                     <div className="flex items-center justify-between mb-4">
@@ -3538,8 +4788,1941 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+        </Card>
+          </div>
+          )}
+
+          {/* Orders Tab */}
+          {activeTab === "orders" && (
+            <div className="p-6 space-y-6 w-full min-w-0 max-w-full">
+              {/* Header with Create Button */}
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Orders</h2>
+                  <p className="text-sm text-gray-600 mt-1">Manage your orders and assigned documents</p>
+                </div>
+                <Button
+                  onClick={() => setCreateOrderDialogOpen(true)}
+                  className="bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700"
+                >
+                  <Package className="h-4 w-4 mr-2" />
+                  Create New Order
+                </Button>
+              </div>
+
+              {/* Orders List */}
+              {loadingOrders ? (
+                <Card className="p-6">
+                  <div className="flex items-center justify-center py-8">
+                    <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
+                    <span className="ml-2 text-gray-600">Loading orders...</span>
           </div>
         </Card>
+              ) : orders.length === 0 ? (
+                <Card className="p-6">
+                  <div className="text-center py-8">
+                    <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No orders yet</h3>
+                    <p className="text-gray-600 mb-4">Create your first order and assign document data to it.</p>
+                    <Button
+                      onClick={() => setCreateOrderDialogOpen(true)}
+                      className="bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700"
+                    >
+                      Create Order
+                    </Button>
+                  </div>
+                </Card>
+              ) : (
+                <div className="space-y-6 w-full">
+                  {/* Open Orders Section */}
+                  {orders.filter(order => isOrderOpen(order)).length > 0 && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900">Open Orders</h3>
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">
+                          {orders.filter(order => isOrderOpen(order)).length}
+                        </span>
+                      </div>
+                      {orders.filter(order => isOrderOpen(order)).map((order) => {
+                    const isExpanded = expandedOrderId === order.id
+                    const parsedJson = order.parsed_json
+                    const documentType = parsedJson?.documentType || "commercial_invoice"
+                    const extractedData = parsedJson?.extractedData || parsedJson || {}
+                    const allProducts = extractedData.products || []
+                    
+                    return (
+                      <Card key={order.id} className={`hover:shadow-lg transition-all w-full max-w-full min-w-0 overflow-hidden ${isExpanded ? 'shadow-xl' : ''}`}>
+                        <div className="p-6 w-full min-w-0">
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-3 mb-2">
+                                <h3 className="text-lg font-semibold text-gray-900">
+                                  {order.order_name || order.order_number}
+                                </h3>
+                                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                  order.status === "draft" ? "bg-gray-100 text-gray-700" :
+                                  order.status === "active" ? "bg-blue-100 text-blue-700" :
+                                  order.status === "completed" ? "bg-green-100 text-green-700" :
+                                  "bg-yellow-100 text-yellow-700"
+                                }`}>
+                                  {order.status}
+                                </span>
+                                <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 ${
+                                  isOrderOpen(order) 
+                                    ? "bg-green-50 text-green-700 border border-green-200" 
+                                    : "bg-gray-50 text-gray-600 border border-gray-200"
+                                }`}>
+                                  {isOrderOpen(order) ? (
+                                    <>
+                                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                      Open
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                      Closed
+                                    </>
+                                  )}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-600 mb-2">Order #: {order.order_number}</p>
+                              {extractedData.shipmentInfo && (extractedData.shipmentInfo.originCountry || extractedData.shipmentInfo.destinationCountry) && (
+                                <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                                  <MapPin className="h-4 w-4 text-gray-500" />
+                                  <span className="font-medium">
+                                    {extractedData.shipmentInfo.originCountry || ""}
+                                    {extractedData.shipmentInfo.originCity ? `, ${extractedData.shipmentInfo.originCity}` : ""}
+                                  </span>
+                                  <ArrowRight className="h-3 w-3 text-gray-400" />
+                                  <span className="font-medium">
+                                    {extractedData.shipmentInfo.destinationCountry || ""}
+                                    {extractedData.shipmentInfo.destinationCity ? `, ${extractedData.shipmentInfo.destinationCity}` : ""}
+                                  </span>
+                                </div>
+                              )}
+                              {order.documents && order.documents.length > 0 && (
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                  <FileText className="h-4 w-4" />
+                                  <span>{order.documents[0].file_name}</span>
+                                </div>
+                              )}
+                              {(() => {
+                                // Normalize hts_codes to array
+                                const htsCodesArray = Array.isArray(order.hts_codes) 
+                                  ? order.hts_codes 
+                                  : (typeof order.hts_codes === 'string' 
+                                      ? order.hts_codes.split(',').map((s: string) => s.trim()).filter(Boolean)
+                                      : [])
+                                
+                                return htsCodesArray.length > 0 && (
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {htsCodesArray.slice(0, 5).map((hts: string, idx: number) => (
+                                      <span
+                                        key={idx}
+                                        className="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-mono rounded"
+                                      >
+                                        {hts}
+                                      </span>
+                                    ))}
+                                    {htsCodesArray.length > 5 && (
+                                      <span className="px-2 py-1 text-xs text-gray-500">
+                                        +{htsCodesArray.length - 5} more
+                                      </span>
+                                    )}
+                                  </div>
+                                )
+                              })()}
+                              {order.order_date && (
+                                <p className="text-xs text-gray-500 mt-2">
+                                  Created: {mounted ? new Date(order.order_date).toLocaleDateString() : new Date(order.order_date).toISOString().split('T')[0]}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex gap-2 flex-shrink-0">
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => {
+                                  setExpandedOrderId(isExpanded ? null : order.id)
+                                }}
+                              >
+                                <FileText className="h-4 w-4 mr-1" />
+                                {isExpanded ? "Hide Details" : "View Details"}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Expanded Details Section */}
+                        {isExpanded && order.parsed_json && (() => {
+                          const isEditing = editingOrderId === order.id
+                          const orderId = order.id
+                          const parsedJson = order.parsed_json || {}
+                          const currentEditedData = editedOrderData[orderId] || parsedJson
+                          const currentExtractedData = currentEditedData?.extractedData || currentEditedData || {}
+                          const documentType = parsedJson.documentType || currentExtractedData.documentType || "commercial_invoice"
+                          const allProducts = currentExtractedData?.products || []
+                          
+                          return (
+                            <div className="border-t border-gray-200 p-4 bg-gray-50 space-y-4 w-full min-w-0">
+                              {/* Document Header Info - Same format as Document Processing */}
+                              {documentType === "commercial_invoice" && (currentExtractedData.invoiceNumber || currentExtractedData.invoiceDate || currentExtractedData.seller || currentExtractedData.buyer) && (
+                                <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200 w-full min-w-0">
+                                  {/* Edit/Save/Cancel Buttons */}
+                                  <div className="flex justify-end mb-4 gap-2">
+                                    {!isEditing ? (
+                                      <>
+                                        {isOrderOpen(order) && (
+                                          <Button
+                                            onClick={() => handleCloseOrder(order)}
+                                            variant="outline"
+                                            size="sm"
+                                            className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                          >
+                                            <XCircle className="h-4 w-4" />
+                                            Close Order
+                                          </Button>
+                                        )}
+                                        <Button
+                                          onClick={() => openOrderPdfTemplateSelector(order)}
+                                          variant="outline"
+                                          size="sm"
+                                          className="gap-2"
+                                          disabled={generatingPdf}
+                                        >
+                                          <FileDown className="h-4 w-4" />
+                                          {generatingPdf ? "Generating..." : "Generate PDF"}
+                                        </Button>
+                                        <Button
+                                          onClick={() => handleStartEditOrder(order)}
+                                          variant="outline"
+                                          size="sm"
+                                          className="gap-2"
+                                        >
+                                          <Edit className="h-4 w-4" />
+                                          Edit
+                                        </Button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Button
+                                          onClick={() => handleCancelEditOrder()}
+                                          variant="outline"
+                                          size="sm"
+                                          className="gap-2"
+                                          disabled={isSavingOrder}
+                                        >
+                                          <X className="h-4 w-4" />
+                                          Cancel
+                                        </Button>
+                                        <Button
+                                          onClick={() => handleSaveEditOrder(order)}
+                                          size="sm"
+                                          className="gap-2"
+                                          disabled={isSavingOrder}
+                                        >
+                                          <Save className="h-4 w-4" />
+                                          {isSavingOrder ? "Saving..." : "Save"}
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4 w-full">
+                                    {documentType === "commercial_invoice" && (currentExtractedData.invoiceNumber || isEditing) && (
+                                      <div>
+                                        <span className="text-gray-500">Invoice #:</span>
+                                        {isEditing ? (
+                                          <Input
+                                            value={currentExtractedData.invoiceNumber || ""}
+                                            onChange={(e) => {
+                                              setEditedOrderData({
+                                                ...editedOrderData,
+                                                [orderId]: { ...currentEditedData, invoiceNumber: e.target.value },
+                                              })
+                                            }}
+                                            className="mt-1"
+                                            placeholder="Invoice number"
+                                          />
+                                        ) : (
+                                          <span className="ml-2 font-medium text-gray-900">{currentExtractedData.invoiceNumber}</span>
+                                        )}
+                                      </div>
+                                    )}
+                                    {(currentExtractedData.invoiceDate || isEditing) && (
+                                      <div>
+                                        <span className="text-gray-500">Date:</span>
+                                        {isEditing ? (
+                                          <Input
+                                            value={currentExtractedData.invoiceDate || ""}
+                                            onChange={(e) => {
+                                              setEditedOrderData({
+                                                ...editedOrderData,
+                                                [orderId]: { ...currentEditedData, invoiceDate: e.target.value },
+                                              })
+                                            }}
+                                            className="mt-1"
+                                            placeholder="Invoice date"
+                                          />
+                                        ) : (
+                                          <span className="ml-2 font-medium text-gray-900">{currentExtractedData.invoiceDate}</span>
+                                        )}
+                                      </div>
+                                    )}
+                                    {(currentExtractedData.totals?.totalValue || isEditing) && (
+                                      <div>
+                                        <span className="text-gray-500">Total Value:</span>
+                                        {isEditing ? (
+                                          <div className="flex gap-2 mt-1">
+                                            <Input
+                                              value={currentExtractedData.totals?.currency || "USD"}
+                                              onChange={(e) => {
+                                                setEditedOrderData({
+                                                  ...editedOrderData,
+                                                  [orderId]: {
+                                                    ...currentEditedData,
+                                                    totals: { ...currentExtractedData.totals, currency: e.target.value },
+                                                  },
+                                                })
+                                              }}
+                                              className="w-20"
+                                              placeholder="USD"
+                                            />
+                                            <Input
+                                              type="number"
+                                              value={currentExtractedData.totals?.totalValue || ""}
+                                              onChange={(e) => {
+                                                setEditedOrderData({
+                                                  ...editedOrderData,
+                                                  [orderId]: {
+                                                    ...currentEditedData,
+                                                    totals: { ...currentExtractedData.totals, totalValue: parseFloat(e.target.value) || 0 },
+                                                  },
+                                                })
+                                              }}
+                                              className="flex-1"
+                                              placeholder="0.00"
+                                            />
+                                          </div>
+                                        ) : (
+                                          <span className="ml-2 font-medium text-gray-900">
+                                            {currentExtractedData.totals?.currency || "USD"} {currentExtractedData.totals?.totalValue?.toLocaleString()}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Shipper/Exporter Information */}
+                              {(currentExtractedData.seller || isEditing) && (
+                                <div className="mb-4 p-3 bg-white rounded border border-gray-200 w-full min-w-0">
+                                  <h4 className="font-semibold text-gray-900 mb-2 text-sm">Shipper/Exporter</h4>
+                                  <div className="text-sm space-y-2">
+                                    <div>
+                                      <span className="text-gray-500">Name: </span>
+                                      {isEditing ? (
+                                        <Input
+                                          value={currentExtractedData.seller?.name || ""}
+                                          onChange={(e) => {
+                                            setEditedOrderData({
+                                              ...editedOrderData,
+                                              [orderId]: {
+                                                ...currentEditedData,
+                                                extractedData: {
+                                                  ...currentExtractedData,
+                                                  seller: { ...currentExtractedData.seller, name: e.target.value },
+                                                },
+                                              },
+                                            })
+                                          }}
+                                          className="mt-1"
+                                          placeholder="Company name"
+                                        />
+                                      ) : (
+                                        <span className="font-medium text-gray-900">{currentExtractedData.seller?.name}</span>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500">Address: </span>
+                                      {isEditing ? (
+                                        <Input
+                                          value={currentExtractedData.seller?.address || ""}
+                                          onChange={(e) => {
+                                            setEditedOrderData({
+                                              ...editedOrderData,
+                                              [orderId]: {
+                                                ...currentEditedData,
+                                                extractedData: {
+                                                  ...currentExtractedData,
+                                                  seller: { ...currentExtractedData.seller, address: e.target.value },
+                                                },
+                                              },
+                                            })
+                                          }}
+                                          className="mt-1"
+                                          placeholder="Complete address"
+                                        />
+                                      ) : (
+                                        <span className="text-gray-900">{currentExtractedData.seller?.address}</span>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500">Tax ID: </span>
+                                      {isEditing ? (
+                                        <Input
+                                          value={currentExtractedData.seller?.taxId || ""}
+                                          onChange={(e) => {
+                                            setEditedOrderData({
+                                              ...editedOrderData,
+                                              [orderId]: {
+                                                ...currentEditedData,
+                                                extractedData: {
+                                                  ...currentExtractedData,
+                                                  seller: { ...currentExtractedData.seller, taxId: e.target.value },
+                                                },
+                                              },
+                                            })
+                                          }}
+                                          className="mt-1"
+                                          placeholder="Tax ID"
+                                        />
+                                      ) : (
+                                        <span className="text-gray-900">{currentExtractedData.seller?.taxId}</span>
+                                      )}
+                                    </div>
+                                    {(currentExtractedData.seller?.contact || isEditing) && (
+                                      <div className="mt-2 space-y-2">
+                                        <div>
+                                          <span className="text-gray-500">Phone: </span>
+                                          {isEditing ? (
+                                            <Input
+                                              value={currentExtractedData.seller?.contact?.phone || ""}
+                                              onChange={(e) => {
+                                                setEditedOrderData({
+                                                  ...editedOrderData,
+                                                  [orderId]: {
+                                                    ...currentEditedData,
+                                                    extractedData: {
+                                                      ...currentExtractedData,
+                                                      seller: {
+                                                        ...currentExtractedData.seller,
+                                                        contact: { ...currentExtractedData.seller?.contact, phone: e.target.value },
+                                                      },
+                                                    },
+                                                  },
+                                                })
+                                              }}
+                                              className="mt-1"
+                                              placeholder="Phone number"
+                                            />
+                                          ) : (
+                                            <span className="text-gray-900">{currentExtractedData.seller?.contact?.phone}</span>
+                                          )}
+                                        </div>
+                                        <div>
+                                          <span className="text-gray-500">Email: </span>
+                                          {isEditing ? (
+                                            <Input
+                                              type="email"
+                                              value={currentExtractedData.seller?.contact?.email || ""}
+                                              onChange={(e) => {
+                                                setEditedOrderData({
+                                                  ...editedOrderData,
+                                                  [orderId]: {
+                                                    ...currentEditedData,
+                                                    extractedData: {
+                                                      ...currentExtractedData,
+                                                      seller: {
+                                                        ...currentExtractedData.seller,
+                                                        contact: { ...currentExtractedData.seller?.contact, email: e.target.value },
+                                                      },
+                                                    },
+                                                  },
+                                                })
+                                              }}
+                                              className="mt-1"
+                                              placeholder="Email address"
+                                            />
+                                          ) : (
+                                            <span className="text-gray-900">{currentExtractedData.seller?.contact?.email}</span>
+                                          )}
+                                        </div>
+                                        <div>
+                                          <span className="text-gray-500">Fax: </span>
+                                          {isEditing ? (
+                                            <Input
+                                              value={currentExtractedData.seller?.contact?.fax || ""}
+                                              onChange={(e) => {
+                                                setEditedOrderData({
+                                                  ...editedOrderData,
+                                                  [orderId]: {
+                                                    ...currentEditedData,
+                                                    extractedData: {
+                                                      ...currentExtractedData,
+                                                      seller: {
+                                                        ...currentExtractedData.seller,
+                                                        contact: { ...currentExtractedData.seller?.contact, fax: e.target.value },
+                                                      },
+                                                    },
+                                                  },
+                                                })
+                                              }}
+                                              className="mt-1"
+                                              placeholder="Fax number"
+                                            />
+                                          ) : (
+                                            <span className="text-gray-900">{currentExtractedData.seller?.contact?.fax}</span>
+                                          )}
+                                        </div>
+                                        <div>
+                                          <span className="text-gray-500">Contact Person: </span>
+                                          {isEditing ? (
+                                            <Input
+                                              value={currentExtractedData.seller?.contact?.contactPerson || ""}
+                                              onChange={(e) => {
+                                                setEditedOrderData({
+                                                  ...editedOrderData,
+                                                  [orderId]: {
+                                                    ...currentEditedData,
+                                                    extractedData: {
+                                                      ...currentExtractedData,
+                                                      seller: {
+                                                        ...currentExtractedData.seller,
+                                                        contact: { ...currentExtractedData.seller?.contact, contactPerson: e.target.value },
+                                                      },
+                                                    },
+                                                  },
+                                                })
+                                              }}
+                                              className="mt-1"
+                                              placeholder="Contact person name"
+                                            />
+                                          ) : (
+                                            <span className="text-gray-900">{currentExtractedData.seller?.contact?.contactPerson}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Consignee Information */}
+                              {(currentExtractedData.buyer || isEditing) && (
+                                <div className="mb-4 p-3 bg-white rounded border border-gray-200 w-full min-w-0">
+                                  <h4 className="font-semibold text-gray-900 mb-2 text-sm">Consignee</h4>
+                                  <div className="text-sm space-y-2">
+                                    <div>
+                                      <span className="text-gray-500">Name: </span>
+                                      {isEditing ? (
+                                        <Input
+                                          value={currentExtractedData.buyer?.name || ""}
+                                          onChange={(e) => {
+                                            setEditedOrderData({
+                                              ...editedOrderData,
+                                              [orderId]: {
+                                                ...currentEditedData,
+                                                extractedData: {
+                                                  ...currentExtractedData,
+                                                  buyer: { ...currentExtractedData.buyer, name: e.target.value },
+                                                },
+                                              },
+                                            })
+                                          }}
+                                          className="mt-1"
+                                          placeholder="Company name"
+                                        />
+                                      ) : (
+                                        <span className="font-medium text-gray-900">{currentExtractedData.buyer?.name}</span>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500">Address: </span>
+                                      {isEditing ? (
+                                        <Input
+                                          value={currentExtractedData.buyer?.address || ""}
+                                          onChange={(e) => {
+                                            setEditedOrderData({
+                                              ...editedOrderData,
+                                              [orderId]: {
+                                                ...currentEditedData,
+                                                extractedData: {
+                                                  ...currentExtractedData,
+                                                  buyer: { ...currentExtractedData.buyer, address: e.target.value },
+                                                },
+                                              },
+                                            })
+                                          }}
+                                          className="mt-1"
+                                          placeholder="Complete address"
+                                        />
+                                      ) : (
+                                        <span className="text-gray-900">{currentExtractedData.buyer?.address}</span>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500">Tax ID: </span>
+                                      {isEditing ? (
+                                        <Input
+                                          value={currentExtractedData.buyer?.taxId || ""}
+                                          onChange={(e) => {
+                                            setEditedOrderData({
+                                              ...editedOrderData,
+                                              [orderId]: {
+                                                ...currentEditedData,
+                                                extractedData: {
+                                                  ...currentExtractedData,
+                                                  buyer: { ...currentExtractedData.buyer, taxId: e.target.value },
+                                                },
+                                              },
+                                            })
+                                          }}
+                                          className="mt-1"
+                                          placeholder="Tax ID"
+                                        />
+                                      ) : (
+                                        <span className="text-gray-900">{currentExtractedData.buyer?.taxId}</span>
+                                      )}
+                                    </div>
+                                    {(currentExtractedData.buyer?.contact || isEditing) && (
+                                      <div className="mt-2 space-y-2">
+                                        <div>
+                                          <span className="text-gray-500">Phone: </span>
+                                          {isEditing ? (
+                                            <Input
+                                              value={currentExtractedData.buyer?.contact?.phone || ""}
+                                              onChange={(e) => {
+                                                setEditedOrderData({
+                                                  ...editedOrderData,
+                                                  [orderId]: {
+                                                    ...currentEditedData,
+                                                    extractedData: {
+                                                      ...currentExtractedData,
+                                                      buyer: {
+                                                        ...currentExtractedData.buyer,
+                                                        contact: { ...currentExtractedData.buyer?.contact, phone: e.target.value },
+                                                      },
+                                                    },
+                                                  },
+                                                })
+                                              }}
+                                              className="mt-1"
+                                              placeholder="Phone number"
+                                            />
+                                          ) : (
+                                            <span className="text-gray-900">{currentExtractedData.buyer?.contact?.phone}</span>
+                                          )}
+                                        </div>
+                                        <div>
+                                          <span className="text-gray-500">Email: </span>
+                                          {isEditing ? (
+                                            <Input
+                                              type="email"
+                                              value={currentExtractedData.buyer?.contact?.email || ""}
+                                              onChange={(e) => {
+                                                setEditedOrderData({
+                                                  ...editedOrderData,
+                                                  [orderId]: {
+                                                    ...currentEditedData,
+                                                    extractedData: {
+                                                      ...currentExtractedData,
+                                                      buyer: {
+                                                        ...currentExtractedData.buyer,
+                                                        contact: { ...currentExtractedData.buyer?.contact, email: e.target.value },
+                                                      },
+                                                    },
+                                                  },
+                                                })
+                                              }}
+                                              className="mt-1"
+                                              placeholder="Email address"
+                                            />
+                                          ) : (
+                                            <span className="text-gray-900">{currentExtractedData.buyer?.contact?.email}</span>
+                                          )}
+                                        </div>
+                                        <div>
+                                          <span className="text-gray-500">Fax: </span>
+                                          {isEditing ? (
+                                            <Input
+                                              value={currentExtractedData.buyer?.contact?.fax || ""}
+                                              onChange={(e) => {
+                                                setEditedOrderData({
+                                                  ...editedOrderData,
+                                                  [orderId]: {
+                                                    ...currentEditedData,
+                                                    extractedData: {
+                                                      ...currentExtractedData,
+                                                      buyer: {
+                                                        ...currentExtractedData.buyer,
+                                                        contact: { ...currentExtractedData.buyer?.contact, fax: e.target.value },
+                                                      },
+                                                    },
+                                                  },
+                                                })
+                                              }}
+                                              className="mt-1"
+                                              placeholder="Fax number"
+                                            />
+                                          ) : (
+                                            <span className="text-gray-900">{currentExtractedData.buyer?.contact?.fax}</span>
+                                          )}
+                                        </div>
+                                        <div>
+                                          <span className="text-gray-500">Contact Person: </span>
+                                          {isEditing ? (
+                                            <Input
+                                              value={currentExtractedData.buyer?.contact?.contactPerson || ""}
+                                              onChange={(e) => {
+                                                setEditedOrderData({
+                                                  ...editedOrderData,
+                                                  [orderId]: {
+                                                    ...currentEditedData,
+                                                    extractedData: {
+                                                      ...currentExtractedData,
+                                                      buyer: {
+                                                        ...currentExtractedData.buyer,
+                                                        contact: { ...currentExtractedData.buyer?.contact, contactPerson: e.target.value },
+                                                      },
+                                                    },
+                                                  },
+                                                })
+                                              }}
+                                              className="mt-1"
+                                              placeholder="Contact person name"
+                                            />
+                                          ) : (
+                                            <span className="text-gray-900">{currentExtractedData.buyer?.contact?.contactPerson}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Signer Information */}
+                              {(currentExtractedData.signer || isEditing) && (
+                                <div className="mb-4 p-3 bg-white rounded border border-gray-200 w-full min-w-0">
+                                  <h4 className="font-semibold text-gray-900 mb-2 text-sm">Document Signer</h4>
+                                  <div className="text-sm space-y-2">
+                                    <div>
+                                      <span className="text-gray-500">Name: </span>
+                                      {isEditing ? (
+                                        <Input
+                                          value={currentExtractedData.signer?.name || ""}
+                                          onChange={(e) => {
+                                            setEditedOrderData({
+                                              ...editedOrderData,
+                                              [orderId]: {
+                                                ...currentEditedData,
+                                                extractedData: {
+                                                  ...currentExtractedData,
+                                                  signer: { ...currentExtractedData.signer, name: e.target.value },
+                                                },
+                                              },
+                                            })
+                                          }}
+                                          className="mt-1"
+                                          placeholder="Signer name"
+                                        />
+                                      ) : (
+                                        <span className="font-medium text-gray-900">{currentExtractedData.signer?.name}</span>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500">Company: </span>
+                                      {isEditing ? (
+                                        <Input
+                                          value={currentExtractedData.signer?.company || ""}
+                                          onChange={(e) => {
+                                            setEditedOrderData({
+                                              ...editedOrderData,
+                                              [orderId]: {
+                                                ...currentEditedData,
+                                                extractedData: {
+                                                  ...currentExtractedData,
+                                                  signer: { ...currentExtractedData.signer, company: e.target.value },
+                                                },
+                                              },
+                                            })
+                                          }}
+                                          className="mt-1"
+                                          placeholder="Company name"
+                                        />
+                                      ) : (
+                                        <span className="text-gray-900">{currentExtractedData.signer?.company}</span>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500">Title: </span>
+                                      {isEditing ? (
+                                        <Input
+                                          value={currentExtractedData.signer?.title || ""}
+                                          onChange={(e) => {
+                                            setEditedOrderData({
+                                              ...editedOrderData,
+                                              [orderId]: {
+                                                ...currentEditedData,
+                                                extractedData: {
+                                                  ...currentExtractedData,
+                                                  signer: { ...currentExtractedData.signer, title: e.target.value },
+                                                },
+                                              },
+                                            })
+                                          }}
+                                          className="mt-1"
+                                          placeholder="Job title"
+                                        />
+                                      ) : (
+                                        <span className="text-gray-900">{currentExtractedData.signer?.title}</span>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500">Signature Date: </span>
+                                      {isEditing ? (
+                                        <Input
+                                          value={currentExtractedData.signer?.signatureDate || ""}
+                                          onChange={(e) => {
+                                            setEditedOrderData({
+                                              ...editedOrderData,
+                                              [orderId]: {
+                                                ...currentEditedData,
+                                                extractedData: {
+                                                  ...currentExtractedData,
+                                                  signer: { ...currentExtractedData.signer, signatureDate: e.target.value },
+                                                },
+                                              },
+                                            })
+                                          }}
+                                          className="mt-1"
+                                          placeholder="Signature date"
+                                        />
+                                      ) : (
+                                        <span className="text-gray-900">{currentExtractedData.signer?.signatureDate}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                            {/* Products Table - Same format as Document Processing */}
+                            {allProducts.length > 0 ? (
+                              <div className="border rounded-lg bg-white w-full min-w-0 overflow-hidden">
+                                <div className="mb-2 p-3 border-b">
+                                  <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                                    <FileText className="h-4 w-4 text-blue-600" />
+                                    Products/Items
+                                  </h3>
+                                </div>
+                                <div className="w-full min-w-0">
+                                  <Table className="w-full min-w-0">
+                                  <TableHeader>
+                                    <TableRow className="bg-gray-50">
+                                      <TableHead className="font-semibold">Description</TableHead>
+                                      <TableHead className="font-semibold">Quantity</TableHead>
+                                      <TableHead className="font-semibold">Unit</TableHead>
+                                      {allProducts.some((p: any) => p.unitPrice) && (
+                                        <TableHead className="font-semibold">Unit Price</TableHead>
+                                      )}
+                                      {allProducts.some((p: any) => p.totalPrice) && (
+                                        <TableHead className="font-semibold">Total Price</TableHead>
+                                      )}
+                                      {allProducts.some((p: any) => p.weight) && (
+                                        <TableHead className="font-semibold">Weight</TableHead>
+                                      )}
+                                      {allProducts.some((p: any) => p.countryOfOrigin) && (
+                                        <TableHead className="font-semibold">Origin</TableHead>
+                                      )}
+                                      {allProducts.some((p: any) => p.htsCode) && (
+                                        <TableHead className="font-semibold">HTS Code</TableHead>
+                                      )}
+                                      {allProducts.some((p: any) => (p as any).dutyCalculation || p.htsCode) && (
+                                        <TableHead className="font-semibold">Duty Calculation</TableHead>
+                                      )}
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {allProducts.map((product: any, productIndex: number) => (
+                                      <TableRow key={productIndex} className="hover:bg-gray-50">
+                                        <TableCell className="font-medium">
+                                          {product.description || "N/A"}
+                                        </TableCell>
+                                        <TableCell>
+                                          {product.quantity || "-"}
+                                        </TableCell>
+                                        <TableCell className="text-gray-600">
+                                          {product.unitOfMeasure || "-"}
+                                        </TableCell>
+                                        {allProducts.some((p: any) => p.unitPrice) && (
+                                          <TableCell>
+                                            {product.unitPrice
+                                              ? `${product.currency || "USD"} ${product.unitPrice.toLocaleString(undefined, {
+                                                  minimumFractionDigits: 2,
+                                                  maximumFractionDigits: 2,
+                                                })}`
+                                              : "-"}
+                                          </TableCell>
+                                        )}
+                                        {allProducts.some((p: any) => p.totalPrice) && (
+                                          <TableCell>
+                                            {product.totalPrice
+                                              ? `${product.currency || "USD"} ${product.totalPrice.toLocaleString(undefined, {
+                                                  minimumFractionDigits: 2,
+                                                  maximumFractionDigits: 2,
+                                                })}`
+                                              : "-"}
+                                          </TableCell>
+                                        )}
+                                        {allProducts.some((p: any) => p.weight) && (
+                                          <TableCell>
+                                            {product.weight
+                                              ? `${product.weight} ${product.weightUnit || "kg"}`
+                                              : "-"}
+                                          </TableCell>
+                                        )}
+                                        {allProducts.some((p: any) => p.countryOfOrigin) && (
+                                          <TableCell>
+                                            {product.countryOfOrigin || "-"}
+                                          </TableCell>
+                                        )}
+                                        {allProducts.some((p: any) => p.htsCode) && (
+                                          <TableCell className="font-mono text-sm">
+                                            {product.htsCode || "-"}
+                                          </TableCell>
+                                        )}
+                                        {allProducts.some((p: any) => (p as any).dutyCalculation || p.htsCode) && (
+                                          <TableCell>
+                                            {(product as any).dutyCalculation ? (
+                                              <div className="space-y-1">
+                                                {(product as any).dutyCalculation.isDutyFree ? (
+                                                  <div className="flex items-center gap-2">
+                                                    <CheckCircle className="h-4 w-4 text-green-600" />
+                                                    <span className="font-semibold text-green-600">No Duty (Free)</span>
+                                                  </div>
+                                                ) : (
+                                                  <>
+                                                    <div className="font-semibold text-red-600">
+                                                      {(() => {
+                                                        const calculatedValue = (product as any).dutyCalculation.calculatedDuty
+                                                        const currency = (product as any).dutyCalculation.currency || "USD"
+                                                        const formatted = calculatedValue?.toLocaleString(undefined, {
+                                                          minimumFractionDigits: 2,
+                                                          maximumFractionDigits: 2,
+                                                        }) || "0.00"
+                                                        return `${currency} ${formatted}`
+                                                      })()}
+                                                    </div>
+                                                    <div className="text-xs text-gray-600">
+                                                      Rate: {(product as any).dutyCalculation.dutyRate || 'N/A'} ({(product as any).dutyCalculation.dutyRateType || 'general'})
+                                                    </div>
+                                                    {(product as any).dutyCalculation.freeTradeAgreement && (product as any).dutyCalculation.freeTradeAgreement !== 'None' && (
+                                                      <div className="text-xs text-blue-600 flex items-center gap-1">
+                                                        <Globe className="h-3 w-3" />
+                                                        <span>FTA: {(product as any).dutyCalculation.freeTradeAgreement}</span>
+                                                        {(product as any).dutyCalculation.ftaBenefit && (product as any).dutyCalculation.ftaBenefit > 0 && (
+                                                          <span className="text-green-600">
+                                                            (Savings: {(product as any).dutyCalculation.currency || "USD"} {(product as any).dutyCalculation.ftaBenefit.toLocaleString(undefined, {
+                                                              minimumFractionDigits: 2,
+                                                              maximumFractionDigits: 2,
+                                                            })})
+                                                          </span>
+                                                        )}
+                                                      </div>
+                                                    )}
+                                                    {(product as any).dutyCalculation.additionalDuties && (
+                                                      <div className="text-xs text-orange-600">
+                                                        + Additional: {(product as any).dutyCalculation.additionalDuties}
+                                                      </div>
+                                                    )}
+                                                    {(product as any).dutyCalculation.calculationBreakdown && (
+                                                      <div className="text-xs text-gray-500 mt-1 p-2 bg-gray-50 rounded">
+                                                        {(product as any).dutyCalculation.calculationBreakdown}
+                                                      </div>
+                                                    )}
+                                                  </>
+                                                )}
+                                              </div>
+                                            ) : product.htsCode ? (
+                                              <span className="text-gray-400 text-xs">No duty calculation available</span>
+                                            ) : (
+                                              "-"
+                                            )}
+                                          </TableCell>
+                                        )}
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="p-4 text-center text-gray-500 border rounded-lg bg-white text-sm">
+                                No products/items found in this order
+                              </div>
+                            )}
+
+                            {/* Shipment Info */}
+                            {extractedData.shipmentInfo && (
+                              <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200 w-full min-w-0">
+                                <h3 className="font-semibold text-gray-900 mb-2">Shipment Information</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm w-full">
+                                  <div>
+                                    <span className="text-gray-500">Origin Country:</span>
+                                    <span className="ml-2 font-medium text-gray-900">
+                                      {extractedData.shipmentInfo.originCountry}
+                                      {extractedData.shipmentInfo.originCity && `, ${extractedData.shipmentInfo.originCity}`}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-gray-500">Destination:</span>
+                                    <span className="ml-2 font-medium text-gray-900">
+                                      {extractedData.shipmentInfo.destinationCountry}
+                                      {extractedData.shipmentInfo.destinationCity &&
+                                        `, ${extractedData.shipmentInfo.destinationCity}`}
+                                    </span>
+                                  </div>
+                                  {extractedData.shipmentInfo.carrier && (
+                                    <div>
+                                      <span className="text-gray-500">Carrier:</span>
+                                      <span className="ml-2 font-medium text-gray-900">{extractedData.shipmentInfo.carrier}</span>
+                                    </div>
+                                  )}
+                                  {extractedData.shipmentInfo.containerNumber && (
+                                    <div>
+                                      <span className="text-gray-500">Container:</span>
+                                      <span className="ml-2 font-medium text-gray-900">{extractedData.shipmentInfo.containerNumber}</span>
+                                    </div>
+                                  )}
+                                  {extractedData.shipmentInfo.vesselName && (
+                                    <div>
+                                      <span className="text-gray-500">Vessel:</span>
+                                      <span className="ml-2 font-medium text-gray-900">{extractedData.shipmentInfo.vesselName}</span>
+                                    </div>
+                                  )}
+                                  {extractedData.shipmentInfo.estimatedArrivalDate && (
+                                    <div>
+                                      <span className="text-gray-500">ETA:</span>
+                                      <span className="ml-2 font-medium text-gray-900">{extractedData.shipmentInfo.estimatedArrivalDate}</span>
+                                    </div>
+                                  )}
+                                  {(extractedData.shipmentInfo.incoterm || extractedData.shipmentInfo.incoterms) && (
+                                    <div>
+                                      <span className="text-gray-500">Incoterms:</span>
+                                      <span className="ml-2 font-medium text-gray-900">
+                                        {extractedData.shipmentInfo.incoterm || extractedData.shipmentInfo.incoterms}
+                                        {extractedData.shipmentInfo.incotermDetails && (
+                                          <span className="text-gray-600 text-xs ml-1">
+                                            ({extractedData.shipmentInfo.incotermDetails.name})
+                                          </span>
+                                        )}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Display detailed incoterm information if available */}
+                                {extractedData.shipmentInfo.incotermDetails && (
+                                  <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                                    <h4 className="font-semibold text-gray-900 mb-3 text-sm flex items-center gap-2">
+                                      <span>Incoterm Details: {extractedData.shipmentInfo.incotermDetails.name}</span>
+                                      <span className="px-2 py-1 bg-green-600 text-white text-xs font-bold rounded">
+                                        {extractedData.shipmentInfo.incoterm}
+                                      </span>
+                                    </h4>
+                                    {extractedData.shipmentInfo.incotermDetails.description_short && (
+                                      <p className="text-sm text-gray-700 mb-3">
+                                        {extractedData.shipmentInfo.incotermDetails.description_short}
+                                      </p>
+                                    )}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`w-3 h-3 rounded-full ${extractedData.shipmentInfo.incotermDetails.includes_pre_carriage ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                                        <span className="text-gray-600">Pre-Carriage</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className={`w-3 h-3 rounded-full ${extractedData.shipmentInfo.incotermDetails.includes_main_carriage ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                                        <span className="text-gray-600">Main Carriage</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className={`w-3 h-3 rounded-full ${extractedData.shipmentInfo.incotermDetails.includes_insurance ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                                        <span className="text-gray-600">Insurance</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className={`w-3 h-3 rounded-full ${extractedData.shipmentInfo.incotermDetails.includes_export_clearance ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                                        <span className="text-gray-600">Export Clearance</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className={`w-3 h-3 rounded-full ${extractedData.shipmentInfo.incotermDetails.includes_import_clearance ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                                        <span className="text-gray-600">Import Clearance</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className={`w-3 h-3 rounded-full ${extractedData.shipmentInfo.incotermDetails.includes_duties_taxes ? 'bg-green-500' : 'bg-gray-300'}`}></span>
+                                        <span className="text-gray-600">Duties & Taxes</span>
+                                      </div>
+                                      {extractedData.shipmentInfo.incotermDetails.transport_mode && (
+                                        <div>
+                                          <span className="text-gray-500">Transport Mode:</span>
+                                          <span className="ml-2 font-medium text-gray-900 capitalize">
+                                            {extractedData.shipmentInfo.incotermDetails.transport_mode}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {extractedData.shipmentInfo.incotermDetails.valuation_basis && (
+                                        <div>
+                                          <span className="text-gray-500">Valuation Basis:</span>
+                                          <span className="ml-2 font-medium text-gray-900">
+                                            {extractedData.shipmentInfo.incotermDetails.valuation_basis}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {extractedData.shipmentInfo.incotermDetails.risk_transfer_point && (
+                                      <div className="mt-3 pt-3 border-t border-green-200">
+                                        <span className="text-gray-500 text-sm">Risk Transfer Point: </span>
+                                        <span className="text-gray-900 text-sm font-medium">
+                                          {extractedData.shipmentInfo.incotermDetails.risk_transfer_point}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {extractedData.shipmentInfo.incotermDetails.notes && (
+                                      <div className="mt-2 pt-2 border-t border-green-200">
+                                        <span className="text-gray-500 text-sm">Notes: </span>
+                                        <span className="text-gray-700 text-sm">
+                                          {extractedData.shipmentInfo.incotermDetails.notes}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Totals */}
+                            {extractedData.totals && (
+                              <div className="p-3 bg-green-50 rounded-lg border border-green-200 w-full min-w-0">
+                                <h3 className="font-semibold text-gray-900 mb-2 text-sm">Totals</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm w-full">
+                                  {extractedData.totals.totalValue !== undefined && (
+                                    <div>
+                                      <span className="text-gray-500">Total Value:</span>
+                                      <span className="ml-2 font-medium text-gray-900">
+                                        {extractedData.totals.currency || "USD"} {extractedData.totals.totalValue.toLocaleString(undefined, {
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        })}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {extractedData.totals.totalWeight !== undefined && (
+                                    <div>
+                                      <span className="text-gray-500">Total Weight:</span>
+                                      <span className="ml-2 font-medium text-gray-900">
+                                        {extractedData.totals.totalWeight} kg
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Duty Calculations Summary - Always displayed after Shipment Information */}
+                            {/* Show this section if there are products with HTS codes or if duty calculations exist */}
+                            {(allProducts.some((p: any) => p.htsCode) || (extractedData as any).totalDuties || ((extractedData as any).dutyCalculations && Array.isArray((extractedData as any).dutyCalculations) && (extractedData as any).dutyCalculations.length > 0)) && (
+                              <div className="mt-4 p-4 bg-gradient-to-br from-red-50 to-orange-50 rounded-lg border border-red-200 shadow-sm w-full min-w-0">
+                                <h4 className="font-semibold text-gray-900 mb-3 text-sm flex items-center gap-2">
+                                  <Calculator className="h-4 w-4 text-red-600" />
+                                  <span>Duty Calculations (Incoterms 2020 Compliant)</span>
+                                </h4>
+                                
+                                {/* Show total duties if available */}
+                                {(extractedData as any).totalDuties && (extractedData as any).totalDuties.amount > 0 ? (
+                                  <>
+                                    <div className="text-2xl font-bold text-red-600 mb-2">
+                                      {(extractedData as any).totalDuties.currency || "USD"} {(extractedData as any).totalDuties.amount?.toLocaleString(undefined, {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      }) || "0.00"}
+                                    </div>
+                                    <p className="text-xs text-gray-600 mb-3">Total duties calculated from HTS codes table</p>
+                                  </>
+                                ) : (extractedData as any).totalDuties && (extractedData as any).totalDuties.amount === 0 ? (
+                                  <div className="text-lg font-semibold text-green-600 mb-2 flex items-center gap-2">
+                                    <CheckCircle className="h-5 w-5" />
+                                    <span>No Duties Apply</span>
+                                  </div>
+                                ) : null}
+                                
+                                {/* Show duty calculations breakdown if available */}
+                                {(extractedData as any).dutyCalculations && Array.isArray((extractedData as any).dutyCalculations) && (extractedData as any).dutyCalculations.length > 0 ? (
+                                  <div className="mt-3 space-y-2">
+                                    <p className="text-xs font-medium text-gray-700 mb-2">Breakdown by HTS Code:</p>
+                                    {(extractedData as any).dutyCalculations.map((duty: any, idx: number) => (
+                                      <div 
+                                        key={idx} 
+                                        className={`text-xs bg-white p-3 rounded border ${
+                                          duty.isDutyFree 
+                                            ? 'border-green-200 bg-green-50' 
+                                            : 'border-red-100'
+                                        }`}
+                                      >
+                                        <div className="flex items-center justify-between mb-1">
+                                          <div className="flex items-center gap-2">
+                                            <span className="font-mono text-gray-700 font-semibold">{duty.htsCode || duty.htsNumber}</span>
+                                            {duty.freeTradeAgreement && duty.freeTradeAgreement !== 'None' && (
+                                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+                                                {duty.freeTradeAgreement}
+                                              </span>
+                                            )}
+                                            {duty.isDutyFree && (
+                                              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded">
+                                                Free
+                                              </span>
+                                            )}
+                                          </div>
+                                          <span className={`font-semibold ${
+                                            duty.isDutyFree ? 'text-green-600' : 'text-red-600'
+                                          }`}>
+                                            {duty.isDutyFree ? (
+                                              <span className="flex items-center gap-1">
+                                                <CheckCircle className="h-3 w-3" />
+                                                No Duty
+                                              </span>
+                                            ) : (
+                                              `${duty.currency || "USD"} ${duty.calculatedDuty?.toLocaleString(undefined, {
+                                                minimumFractionDigits: 2,
+                                                maximumFractionDigits: 2,
+                                              }) || "0.00"}`
+                                            )}
+                                          </span>
+                                        </div>
+                                        
+                                        {!duty.isDutyFree && (
+                                          <div className="text-gray-600 mt-1 space-y-0.5">
+                                            <div className="text-xs">
+                                              <span className="font-medium">Rate:</span> {duty.dutyRate || 'N/A'} ({duty.dutyRateType || 'general'})
+                                            </div>
+                                            {duty.freeTradeAgreement && duty.freeTradeAgreement !== 'None' && duty.ftaBenefit && duty.ftaBenefit > 0 && (
+                                              <div className="text-xs text-blue-600">
+                                                <span className="font-medium">FTA Benefit:</span> {duty.currency || "USD"} {duty.ftaBenefit.toLocaleString(undefined, {
+                                                  minimumFractionDigits: 2,
+                                                  maximumFractionDigits: 2,
+                                                })}
+                                              </div>
+                                            )}
+                                            {duty.additionalDuties && (
+                                              <div className="text-xs text-orange-600">
+                                                <span className="font-medium">Additional Duties:</span> {duty.additionalDuties}
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                        
+                                        {duty.calculationBreakdown && (
+                                          <div className="text-gray-600 mt-2 pt-2 border-t border-gray-200 text-xs italic">
+                                            {duty.calculationBreakdown}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : allProducts.some((p: any) => p.htsCode) ? (
+                                  // Show message if products have HTS codes but no calculations yet
+                                  <div className="mt-3 p-3 bg-yellow-50 rounded border border-yellow-200">
+                                    <p className="text-xs text-yellow-800">
+                                      Products have HTS codes but duty calculations are not yet available. Calculations will appear here once processed.
+                                    </p>
+                                  </div>
+                                ) : null}
+                              </div>
+                            )}
+                            </div>
+                          )
+                        })()}
+                      </Card>
+                    )
+                  })}
+                    </div>
+                  )}
+
+                  {/* Closed Orders Section */}
+                  {orders.filter(order => !isOrderOpen(order)).length > 0 && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900">Closed Orders</h3>
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">
+                          {orders.filter(order => !isOrderOpen(order)).length}
+                        </span>
+                      </div>
+                      {orders.filter(order => !isOrderOpen(order)).map((order) => {
+                        const isExpanded = expandedOrderId === order.id
+                        const parsedJson = order.parsed_json
+                        const documentType = parsedJson?.documentType || "commercial_invoice"
+                        const extractedData = parsedJson?.extractedData || parsedJson || {}
+                        const allProducts = extractedData.products || []
+                        
+                        return (
+                          <Card key={order.id} className={`hover:shadow-lg transition-all w-full max-w-full min-w-0 overflow-hidden ${isExpanded ? 'shadow-xl' : ''}`}>
+                            <div className="p-6 w-full min-w-0">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-3 mb-2">
+                                    <h3 className="text-lg font-semibold text-gray-900">
+                                      {order.order_name || order.order_number}
+                                    </h3>
+                                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                      order.status === "draft" ? "bg-gray-100 text-gray-700" :
+                                      order.status === "active" ? "bg-blue-100 text-blue-700" :
+                                      order.status === "completed" ? "bg-green-100 text-green-700" :
+                                      "bg-yellow-100 text-yellow-700"
+                                    }`}>
+                                      {order.status}
+                                    </span>
+                                    <span className={`px-2 py-1 text-xs font-medium rounded-full flex items-center gap-1 ${
+                                      isOrderOpen(order) 
+                                        ? "bg-green-50 text-green-700 border border-green-200" 
+                                        : "bg-gray-50 text-gray-600 border border-gray-200"
+                                    }`}>
+                                      {isOrderOpen(order) ? (
+                                        <>
+                                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                          Open
+                                        </>
+                                      ) : (
+                                        <>
+                                          <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                          Closed
+                                        </>
+                                      )}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-600 mb-2">Order #: {order.order_number}</p>
+                                  {extractedData.shipmentInfo && (extractedData.shipmentInfo.originCountry || extractedData.shipmentInfo.destinationCountry) && (
+                                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                                      <MapPin className="h-4 w-4 text-gray-500" />
+                                      <span className="font-medium">
+                                        {extractedData.shipmentInfo.originCountry || ""}
+                                        {extractedData.shipmentInfo.originCity ? `, ${extractedData.shipmentInfo.originCity}` : ""}
+                                      </span>
+                                      <ArrowRight className="h-3 w-3 text-gray-400" />
+                                      <span className="font-medium">
+                                        {extractedData.shipmentInfo.destinationCountry || ""}
+                                        {extractedData.shipmentInfo.destinationCity ? `, ${extractedData.shipmentInfo.destinationCity}` : ""}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {order.documents && order.documents.length > 0 && (
+                                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                                      <FileText className="h-4 w-4" />
+                                      <span>{order.documents[0].file_name}</span>
+                                    </div>
+                                  )}
+                                  {(() => {
+                                    // Normalize hts_codes to array
+                                    const htsCodesArray = Array.isArray(order.hts_codes) 
+                                      ? order.hts_codes 
+                                      : (typeof order.hts_codes === 'string' 
+                                          ? order.hts_codes.split(',').map((s: string) => s.trim()).filter(Boolean)
+                                          : [])
+                                    
+                                    return htsCodesArray.length > 0 && (
+                                      <div className="mt-2 flex flex-wrap gap-2">
+                                        {htsCodesArray.slice(0, 5).map((hts: string, idx: number) => (
+                                          <span
+                                            key={idx}
+                                            className="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-mono rounded"
+                                          >
+                                            {hts}
+                                          </span>
+                                        ))}
+                                        {htsCodesArray.length > 5 && (
+                                          <span className="px-2 py-1 text-xs text-gray-500">
+                                            +{htsCodesArray.length - 5} more
+                                          </span>
+                                        )}
+                                      </div>
+                                    )
+                                  })()}
+                                  {order.order_date && (
+                                    <p className="text-xs text-gray-500 mt-2">
+                                      Created: {mounted ? new Date(order.order_date).toLocaleDateString() : new Date(order.order_date).toISOString().split('T')[0]}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex gap-2 flex-shrink-0">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => {
+                                      setExpandedOrderId(isExpanded ? null : order.id)
+                                    }}
+                                  >
+                                    <FileText className="h-4 w-4 mr-1" />
+                                    {isExpanded ? "Hide Details" : "View Details"}
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Expanded Details Section - Same as open orders */}
+                            {isExpanded && order.parsed_json && (() => {
+                              const isEditing = editingOrderId === order.id
+                              const orderId = order.id
+                              const parsedJson = order.parsed_json || {}
+                              const currentEditedData = editedOrderData[orderId] || parsedJson
+                              const currentExtractedData = currentEditedData?.extractedData || currentEditedData || {}
+                              const documentType = parsedJson.documentType || currentExtractedData.documentType || "commercial_invoice"
+                              const allProducts = currentExtractedData?.products || []
+                              
+                              return (
+                                <div className="border-t border-gray-200 p-4 bg-gray-50 space-y-4 w-full min-w-0">
+                                  {/* Document Header Info - Same format as Document Processing */}
+                                  {documentType === "commercial_invoice" && (currentExtractedData.invoiceNumber || currentExtractedData.invoiceDate || currentExtractedData.seller || currentExtractedData.buyer) && (
+                                    <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200 w-full min-w-0">
+                                      {/* Edit/Save/Cancel Buttons */}
+                                      <div className="flex justify-end mb-4 gap-2">
+                                        {!isEditing ? (
+                                          <>
+                                            {!isOrderOpen(order) && (
+                                              <Button
+                                                onClick={() => handleReopenOrder(order)}
+                                                variant="outline"
+                                                size="sm"
+                                                className="gap-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                              >
+                                                <CheckCircle className="h-4 w-4" />
+                                                Reopen Order
+                                              </Button>
+                                            )}
+                                            <Button
+                                              onClick={() => openOrderPdfTemplateSelector(order)}
+                                              variant="outline"
+                                              size="sm"
+                                              className="gap-2"
+                                              disabled={generatingPdf}
+                                            >
+                                              <FileDown className="h-4 w-4" />
+                                              {generatingPdf ? "Generating..." : "Generate PDF"}
+                                            </Button>
+                                            <Button
+                                              onClick={() => handleStartEditOrder(order)}
+                                              variant="outline"
+                                              size="sm"
+                                              className="gap-2"
+                                            >
+                                              <Edit className="h-4 w-4" />
+                                              Edit
+                                            </Button>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Button
+                                              onClick={() => handleCancelEditOrder()}
+                                              variant="outline"
+                                              size="sm"
+                                              className="gap-2"
+                                              disabled={isSavingOrder}
+                                            >
+                                              <X className="h-4 w-4" />
+                                              Cancel
+                                            </Button>
+                                            <Button
+                                              onClick={() => handleSaveEditOrder(order)}
+                                              variant="default"
+                                              size="sm"
+                                              className="gap-2"
+                                              disabled={isSavingOrder}
+                                            >
+                                              <Save className="h-4 w-4" />
+                                              {isSavingOrder ? "Saving..." : "Save"}
+                                            </Button>
+                                          </>
+                                        )}
+                                      </div>
+                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4 w-full">
+                                        {documentType === "commercial_invoice" && (currentExtractedData.invoiceNumber || isEditing) && (
+                                          <div>
+                                            <span className="text-gray-500">Invoice #:</span>
+                                            {isEditing ? (
+                                              <Input
+                                                value={currentExtractedData.invoiceNumber || ""}
+                                                onChange={(e) => {
+                                                  setEditedOrderData({
+                                                    ...editedOrderData,
+                                                    [orderId]: { ...currentEditedData, extractedData: { ...currentExtractedData, invoiceNumber: e.target.value } },
+                                                  })
+                                                }}
+                                                className="mt-1"
+                                                placeholder="Invoice number"
+                                              />
+                                            ) : (
+                                              <span className="ml-2 font-medium text-gray-900">{currentExtractedData.invoiceNumber}</span>
+                                            )}
+                                          </div>
+                                        )}
+                                        {(currentExtractedData.invoiceDate || isEditing) && (
+                                          <div>
+                                            <span className="text-gray-500">Date:</span>
+                                            {isEditing ? (
+                                              <Input
+                                                value={currentExtractedData.invoiceDate || ""}
+                                                onChange={(e) => {
+                                                  setEditedOrderData({
+                                                    ...editedOrderData,
+                                                    [orderId]: { ...currentEditedData, extractedData: { ...currentExtractedData, invoiceDate: e.target.value } },
+                                                  })
+                                                }}
+                                                className="mt-1"
+                                                placeholder="Invoice date"
+                                              />
+                                            ) : (
+                                              <span className="ml-2 font-medium text-gray-900">{currentExtractedData.invoiceDate}</span>
+                                            )}
+                                          </div>
+                                        )}
+                                        {(currentExtractedData.totals?.totalValue || isEditing) && (
+                                          <div>
+                                            <span className="text-gray-500">Total Value:</span>
+                                            {isEditing ? (
+                                              <div className="flex gap-2 mt-1">
+                                                <Input
+                                                  value={currentExtractedData.totals?.currency || "USD"}
+                                                  onChange={(e) => {
+                                                    setEditedOrderData({
+                                                      ...editedOrderData,
+                                                      [orderId]: {
+                                                        ...currentEditedData,
+                                                        extractedData: {
+                                                          ...currentExtractedData,
+                                                          totals: { ...currentExtractedData.totals, currency: e.target.value },
+                                                        },
+                                                      },
+                                                    })
+                                                  }}
+                                                  className="w-20"
+                                                  placeholder="USD"
+                                                />
+                                                <Input
+                                                  type="number"
+                                                  value={currentExtractedData.totals?.totalValue || ""}
+                                                  onChange={(e) => {
+                                                    setEditedOrderData({
+                                                      ...editedOrderData,
+                                                      [orderId]: {
+                                                        ...currentEditedData,
+                                                        extractedData: {
+                                                          ...currentExtractedData,
+                                                          totals: { ...currentExtractedData.totals, totalValue: parseFloat(e.target.value) || 0 },
+                                                        },
+                                                      },
+                                                    })
+                                                  }}
+                                                  className="flex-1"
+                                                  placeholder="0.00"
+                                                />
+                                              </div>
+                                            ) : (
+                                              <span className="ml-2 font-medium text-gray-900">
+                                                {currentExtractedData.totals?.currency || "USD"} {currentExtractedData.totals?.totalValue?.toLocaleString()}
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )
+                            })()}
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Create Order Dialog */}
+              <Dialog open={createOrderDialogOpen} onOpenChange={setCreateOrderDialogOpen}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Create New Order</DialogTitle>
+                    <DialogDescription>
+                      Create a new order and assign extracted document data to it.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Order Number <span className="text-red-500">*</span>
+                      </label>
+                      <Input
+                        value={newOrderNumber}
+                        onChange={(e) => setNewOrderNumber(e.target.value)}
+                        placeholder="ORD-2024-001"
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Order Name (Optional)
+                      </label>
+                      <Input
+                        value={newOrderName}
+                        onChange={(e) => setNewOrderName(e.target.value)}
+                        placeholder="Customer Order Name"
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Assign Document <span className="text-red-500">*</span>
+                      </label>
+                      {loadingAvailableDocuments ? (
+                        <div className="flex items-center justify-center py-4">
+                          <RefreshCw className="h-4 w-4 animate-spin text-gray-400" />
+                          <span className="ml-2 text-sm text-gray-600">Loading documents...</span>
+                        </div>
+                      ) : availableDocuments.length === 0 ? (
+                        <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                          <p className="text-sm text-gray-600">
+                            No processed documents available. Please process a document in the Document Processing tab first.
+                          </p>
+                        </div>
+                      ) : (
+                        <Select
+                          value={selectedDocumentParsedDataId || ""}
+                          onValueChange={(value) => {
+                            setSelectedDocumentParsedDataId(value)
+                            const doc = availableDocuments.find((d: any) => 
+                              d.document_parsed_data && d.document_parsed_data[0]?.id === value
+                            )
+                            if (doc) {
+                              setSelectedDocumentId(doc.id)
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a processed document" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableDocuments.map((doc: any) => {
+                              const parsedData = doc.document_parsed_data?.[0]
+                              if (!parsedData) return null
+                              // Normalize hts_codes to array
+                              const htsCodesArray = Array.isArray(parsedData.hts_codes) 
+                                ? parsedData.hts_codes 
+                                : (typeof parsedData.hts_codes === 'string' 
+                                    ? parsedData.hts_codes.split(',').map((s: string) => s.trim()).filter(Boolean)
+                                    : [])
+                              
+                              return (
+                                <SelectItem key={parsedData.id} value={parsedData.id}>
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">{doc.file_name}</span>
+                                    {htsCodesArray.length > 0 && (
+                                      <span className="text-xs text-gray-500">
+                                        {htsCodesArray.length} HTS code(s)
+                                      </span>
+                                    )}
+                                  </div>
+                                </SelectItem>
+                              )
+                            })}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                    {selectedDocumentParsedDataId && (
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm font-medium text-blue-900 mb-2">Selected Document:</p>
+                        {(() => {
+                          const doc = availableDocuments.find((d: any) => 
+                            d.document_parsed_data && d.document_parsed_data[0]?.id === selectedDocumentParsedDataId
+                          )
+                          const parsedData = doc?.document_parsed_data?.[0]
+                          if (!parsedData) return null
+                          
+                          // Normalize hts_codes to array (PostgreSQL TEXT[] might be returned as string)
+                          const htsCodesArray = Array.isArray(parsedData.hts_codes) 
+                            ? parsedData.hts_codes 
+                            : (typeof parsedData.hts_codes === 'string' 
+                                ? parsedData.hts_codes.split(',').map((s: string) => s.trim()).filter(Boolean)
+                                : [])
+                          
+                          return (
+                            <div className="space-y-2 text-sm">
+                              <p className="text-blue-800"><strong>File:</strong> {doc?.file_name}</p>
+                              {htsCodesArray.length > 0 && (
+                                <div>
+                                  <p className="text-blue-800 font-medium mb-1">HTS Codes:</p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {htsCodesArray.map((hts: string, idx: number) => (
+                                      <span
+                                        key={idx}
+                                        className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-mono rounded"
+                                      >
+                                        {hts}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {parsedData.primary_hts_code && (
+                                <p className="text-blue-800">
+                                  <strong>Primary HTS:</strong> {parsedData.primary_hts_code}
+                                </p>
+                              )}
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setCreateOrderDialogOpen(false)
+                        setNewOrderNumber("")
+                        setNewOrderName("")
+                        setSelectedDocumentParsedDataId(null)
+                        setSelectedDocumentId(null)
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleCreateOrder}
+                      disabled={creatingOrder || !newOrderNumber.trim() || !selectedDocumentParsedDataId}
+                      className="bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700"
+                    >
+                      {creatingOrder ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        "Create Order"
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+            </div>
+          )}
+
+          {/* Accounting Tab */}
+          {activeTab === "accounting" && (
+            <div className="p-6 space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Accounting</h2>
+                <p className="text-sm text-gray-600">Financial overview and duty calculations</p>
+              </div>
+
+              {/* Total Duties Card */}
+              <Card className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                    <Calculator className="h-5 w-5 text-blue-600" />
+                    Total Duties Across All Orders
+                  </h3>
+                  {loadingOrders && (
+                    <RefreshCw className="h-4 w-4 animate-spin text-gray-400" />
+                  )}
+                </div>
+                {loadingOrders ? (
+                  <div className="flex items-center justify-center py-8">
+                    <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
+                    <span className="ml-2 text-gray-600">Loading orders...</span>
+                  </div>
+                ) : totalDuties ? (
+                  <div className="space-y-4">
+                    <div 
+                      className="text-center p-6 bg-white rounded-lg border border-blue-200 cursor-pointer hover:bg-blue-50 transition-colors"
+                      onClick={handleOpenDutiesBreakdown}
+                      title="Click to view breakdown by order"
+                    >
+                      <div className="text-4xl font-bold text-blue-600 mb-2 flex items-center justify-center gap-2">
+                        {totalDuties.currency} {totalDuties.amount.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                        <Info className="h-5 w-5 text-blue-400" />
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Total duties calculated from {orders.length} order{orders.length !== 1 ? 's' : ''}
+                      </p>
+                      <p className="text-xs text-blue-500 mt-2">Click to view breakdown</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="p-3 bg-white rounded border border-blue-100">
+                        <div className="text-gray-500 mb-1">Total Orders</div>
+                        <div className="text-xl font-semibold text-gray-900">{orders.length}</div>
+                      </div>
+                      <div className="p-3 bg-white rounded border border-blue-100">
+                        <div className="text-gray-500 mb-1">Open Orders</div>
+                        <div className="text-xl font-semibold text-green-600">
+                          {orders.filter((o: any) => isOrderOpen(o)).length}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Calculator className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                    <p>No orders found or no duty calculations available.</p>
+                    {orders.length === 0 && (
+                      <p className="text-sm mt-2">Create orders and assign documents to see duty totals.</p>
+                    )}
+                  </div>
+                )}
+              </Card>
+
+              {/* Additional Accounting Cards Placeholder */}
+              <Card className="p-6">
+                <h3 className="font-semibold text-lg mb-4">Additional Reports</h3>
+                <p className="text-gray-600">More accounting features coming soon.</p>
+              </Card>
+            </div>
+          )}
+
+          {/* Clients Tab */}
+          {activeTab === "clients" && (
+            <div className="p-6 space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Clients</h2>
+                <p className="text-sm text-gray-600">View all clients and their associated orders</p>
+              </div>
+
+              {loadingOrders ? (
+                <Card className="p-6">
+                  <div className="flex items-center justify-center py-8">
+                    <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
+                    <span className="ml-2 text-gray-600">Loading clients...</span>
+                  </div>
+                </Card>
+              ) : clients.length > 0 ? (
+                <div className="space-y-4">
+                  {clients.map((client, index) => (
+                    <Card key={index} className="p-6 hover:shadow-lg transition-shadow">
+                      <div className="space-y-4">
+                        {/* Client Header */}
+                        <div className="border-b border-gray-200 pb-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                                {client.name}
+                              </h3>
+                              {client.address && (
+                                <p className="text-sm text-gray-600 mb-1">{client.address}</p>
+                              )}
+                              <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
+                                {client.taxId && (
+                                  <span><strong>Tax ID:</strong> {client.taxId}</span>
+                                )}
+                                {client.contact?.phone && (
+                                  <span><strong>Phone:</strong> {client.contact.phone}</span>
+                                )}
+                                {client.contact?.email && (
+                                  <span><strong>Email:</strong> {client.contact.email}</span>
+                                )}
+                                {client.contact?.contactPerson && (
+                                  <span><strong>Contact:</strong> {client.contact.contactPerson}</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="ml-4">
+                              <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full">
+                                {client.orders.length} order{client.orders.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Orders List */}
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 mb-3">Orders:</h4>
+                          <div className="space-y-2">
+                            {client.orders.map((order) => (
+                              <div
+                                key={order.id}
+                                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
+                              >
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-gray-900">
+                                      {order.orderName || order.orderNumber}
+                                    </span>
+                                    <span className="text-xs text-gray-500">#{order.orderNumber}</span>
+                                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                      order.status === "draft" ? "bg-gray-100 text-gray-700" :
+                                      order.status === "active" ? "bg-blue-100 text-blue-700" :
+                                      order.status === "completed" ? "bg-green-100 text-green-700" :
+                                      "bg-yellow-100 text-yellow-700"
+                                    }`}>
+                                      {order.status}
+                                    </span>
+                                  </div>
+                                  {order.orderDate && (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      Created: {mounted ? new Date(order.orderDate).toLocaleDateString() : new Date(order.orderDate).toISOString().split('T')[0]}
+                                    </p>
+                                  )}
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setActiveTab("orders")
+                                    setExpandedOrderId(order.id)
+                                  }}
+                                  className="ml-4"
+                                >
+                                  View Order
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Card className="p-6">
+                  <div className="text-center py-8 text-gray-500">
+                    <User className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                    <p className="text-lg font-medium mb-2">No clients found</p>
+                    <p className="text-sm">Clients will appear here once orders are created with buyer/consignee information.</p>
+                  </div>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* Brokers Tab */}
+          {activeTab === "brokers" && (
+            <div className="p-6">
+              <Card className="p-6">
+                <h3 className="font-semibold text-lg mb-4">Brokers</h3>
+                <p className="text-gray-600">Broker management coming soon.</p>
+              </Card>
+            </div>
+          )}
+
+          {/* Settings Tab */}
+          {activeTab === "settings" && (
+            <div className="p-6">
+              <Card className="p-6">
+                <h3 className="font-semibold text-lg mb-4">Settings</h3>
+                <p className="text-gray-600">Settings page coming soon.</p>
+              </Card>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* PDF Template Selection Dialog */}
@@ -3603,6 +6786,7 @@ export default function DashboardPage() {
               onClick={() => {
                 setPdfTemplateOpen(false)
                 setPendingDocForPdf(null)
+                setPendingOrderForPdf(null)
               }}
             >
               Cancel
@@ -3611,9 +6795,11 @@ export default function DashboardPage() {
               onClick={() => {
                 if (pendingDocForPdf) {
                   generatePDF(pendingDocForPdf.doc, pendingDocForPdf.docIndex, selectedPdfTemplate)
+                } else if (pendingOrderForPdf) {
+                  generateOrderPDF(pendingOrderForPdf.order, selectedPdfTemplate)
                 }
               }}
-              disabled={!pendingDocForPdf || generatingPdf}
+              disabled={(!pendingDocForPdf && !pendingOrderForPdf) || generatingPdf}
             >
               {generatingPdf ? "Generating..." : "Generate PDF"}
             </Button>
@@ -3659,6 +6845,66 @@ export default function DashboardPage() {
             <Button onClick={downloadPDF} className="gap-2">
               <FileDown className="h-4 w-4" />
               Download PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Duties Breakdown Dialog */}
+      <Dialog open={dutiesBreakdownOpen} onOpenChange={setDutiesBreakdownOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Duties Breakdown by Order</DialogTitle>
+            <DialogDescription>
+              View individual duty amounts for each order
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {orderDutiesBreakdown.length > 0 ? (
+              <div className="space-y-2">
+                <div className="grid grid-cols-3 gap-4 p-3 bg-gray-50 rounded-lg border border-gray-200 font-semibold text-sm">
+                  <div>Order Number</div>
+                  <div>Order Name</div>
+                  <div className="text-right">Duty Amount</div>
+                </div>
+                {orderDutiesBreakdown.map((item, index) => (
+                  <div
+                    key={index}
+                    className="grid grid-cols-3 gap-4 p-3 bg-white rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="font-medium text-gray-900">{item.orderNumber}</div>
+                    <div className="text-gray-600">{item.orderName || "-"}</div>
+                    <div className="text-right font-semibold text-blue-600">
+                      {item.currency} {item.amount.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <div className="grid grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg border-2 border-blue-300 font-bold text-sm mt-4">
+                  <div className="col-span-2">Total</div>
+                  <div className="text-right text-blue-700">
+                    {totalDuties?.currency || "USD"} {totalDuties?.amount.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    }) || "0.00"}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Calculator className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                <p>No duty calculations available for orders.</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDutiesBreakdownOpen(false)}
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

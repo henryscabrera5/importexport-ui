@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { matchIncoterm } from "@/lib/services/incoterms"
-import { findHtsCode, calculateDutiesWithGemini } from "@/lib/services/hts-duty-calculator"
+import { findHtsCode, calculateDutiesHardcoded } from "@/lib/services/hts-duty-calculator"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
@@ -163,12 +163,10 @@ export async function GET(request: NextRequest) {
           if (!matchedIncoterm.includes_duties_taxes && 
               extractedData.products && 
               Array.isArray(extractedData.products) &&
-              !hasCalculatedDuties && // Only calculate if not already calculated
-              genAI) {
+              !hasCalculatedDuties) { // Only calculate if not already calculated
             console.log("✅ [API] Conditions met, calculating duties...")
             try {
               console.log("Calculating duties for previously extracted document...")
-              const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" })
               
               // Calculate duties for each product with an HTS code
               const dutyCalculations = await Promise.all(
@@ -185,8 +183,8 @@ export async function GET(request: NextRequest) {
                       return null
                     }
 
-                    // Calculate duties using Gemini
-                    const dutyCalculation = await calculateDutiesWithGemini(
+                    // Calculate duties using hardcoded logic (no AI required)
+                    const dutyCalculation = calculateDutiesHardcoded(
                       htsDutyInfo,
                       {
                         description: product.description || '',
@@ -197,9 +195,9 @@ export async function GET(request: NextRequest) {
                         weight: product.weight,
                         weightUnit: product.weightUnit,
                         currency: product.currency || extractedData.currency || 'USD',
+                        countryOfOrigin: product.countryOfOrigin || extractedData.shipmentInfo?.originCountry,
                       },
-                      extractedData,
-                      model
+                      extractedData
                     )
 
                     return {

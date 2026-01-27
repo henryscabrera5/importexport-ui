@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { matchIncoterm } from "@/lib/services/incoterms"
-import { findHtsCode, calculateDutiesWithGemini } from "@/lib/services/hts-duty-calculator"
+import { findHtsCode, calculateDutiesHardcoded } from "@/lib/services/hts-duty-calculator"
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 
@@ -211,8 +211,8 @@ Return a brief JSON summary: { "documentType": "...", "hasTables": true/false, "
                         }
                       }
 
-                      // Calculate duties using Gemini
-                      const dutyCalculation = await calculateDutiesWithGemini(
+                      // Calculate duties using hardcoded logic (no AI required)
+                      const dutyCalculation = calculateDutiesHardcoded(
                         htsDutyInfo,
                         {
                           description: product.description || '',
@@ -225,8 +225,7 @@ Return a brief JSON summary: { "documentType": "...", "hasTables": true/false, "
                           currency: product.currency || parsedData.currency || 'USD',
                           countryOfOrigin: product.countryOfOrigin || parsedData.shipmentInfo?.originCountry,
                         },
-                        parsedData,
-                        model
+                        parsedData
                       )
 
                       return {

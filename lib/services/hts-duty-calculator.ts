@@ -584,3 +584,337 @@ Return ONLY valid JSON, no markdown formatting or additional text.`
   }
 }
 
+/**
+ * FTA (Free Trade Agreement) lookup table
+ * Maps country pairs to their applicable FTA
+ */
+const FTA_LOOKUP: Record<string, string> = {
+  // USMCA (United States-Mexico-Canada Agreement)
+  'US-CA': 'USMCA',
+  'US-MX': 'USMCA',
+  'CA-US': 'USMCA',
+  'CA-MX': 'USMCA',
+  'MX-US': 'USMCA',
+  'MX-CA': 'USMCA',
+  // Add more FTAs as needed
+  // GSP countries (Generalized System of Preferences) - example
+  // 'US-IN': 'GSP', // India
+  // 'US-TH': 'GSP', // Thailand
+}
+
+/**
+ * Normalize country code for FTA lookup
+ */
+function normalizeCountryCode(country: string): string {
+  if (!country) return ''
+  // Convert to uppercase and take first 2-3 characters
+  const upper = country.toUpperCase().trim()
+  // Handle common country name variations
+  const countryMap: Record<string, string> = {
+    'UNITED STATES': 'US',
+    'USA': 'US',
+    'US': 'US',
+    'CANADA': 'CA',
+    'CA': 'CA',
+    'MEXICO': 'MX',
+    'MX': 'MX',
+  }
+  return countryMap[upper] || upper.substring(0, 2)
+}
+
+/**
+ * Check if an FTA applies between two countries
+ */
+function getApplicableFTA(originCountry: string, destinationCountry: string): string | null {
+  const origin = normalizeCountryCode(originCountry)
+  const destination = normalizeCountryCode(destinationCountry)
+  
+  if (!origin || !destination) return null
+  
+  const key = `${origin}-${destination}`
+  return FTA_LOOKUP[key] || null
+}
+
+/**
+ * Parse a duty rate string and extract the numeric value and type
+ * Handles formats like: "10%", "5¢/kg", "$2.50/kg", "10¢/piece", "Free", etc.
+ */
+interface ParsedRate {
+  value: number
+  type: 'percentage' | 'per_unit' | 'per_weight' | 'free' | 'unknown'
+  unit?: string // 'kg', 'piece', 'unit', etc.
+  currency?: string // 'USD', 'cents', etc.
+}
+
+function parseDutyRate(rateString: string | null | undefined): ParsedRate {
+  if (!rateString || rateString.trim() === '' || rateString.toUpperCase() === 'FREE' || rateString.toUpperCase() === 'NULL') {
+    return { value: 0, type: 'free' }
+  }
+
+  const rate = rateString.trim()
+
+  // Check for percentage: "10%", "5.5%", etc.
+  const percentageMatch = rate.match(/^([\d.]+)\s*%$/)
+  if (percentageMatch) {
+    return {
+      value: parseFloat(percentageMatch[1]),
+      type: 'percentage',
+    }
+  }
+
+  // Check for per-unit rates with cents: "5¢/kg", "10¢/piece", "0.5¢/kg"
+  const centsPerUnitMatch = rate.match(/^([\d.]+)\s*[¢c]\s*\/\s*([a-z]+)$/i)
+  if (centsPerUnitMatch) {
+    return {
+      value: parseFloat(centsPerUnitMatch[1]) / 100, // Convert cents to dollars
+      type: centsPerUnitMatch[2].toLowerCase().includes('kg') || centsPerUnitMatch[2].toLowerCase().includes('weight') ? 'per_weight' : 'per_unit',
+      unit: centsPerUnitMatch[2].toLowerCase(),
+      currency: 'USD',
+    }
+  }
+
+  // Check for per-unit rates with dollars: "$2.50/kg", "$10/piece", "$0.50/kg"
+  const dollarsPerUnitMatch = rate.match(/^\$\s*([\d.]+)\s*\/\s*([a-z]+)$/i)
+  if (dollarsPerUnitMatch) {
+    return {
+      value: parseFloat(dollarsPerUnitMatch[1]),
+      type: dollarsPerUnitMatch[2].toLowerCase().includes('kg') || dollarsPerUnitMatch[2].toLowerCase().includes('weight') ? 'per_weight' : 'per_unit',
+      unit: dollarsPerUnitMatch[2].toLowerCase(),
+      currency: 'USD',
+    }
+  }
+
+  // Check for simple numeric per unit: "2.5/kg", "10/piece"
+  const numericPerUnitMatch = rate.match(/^([\d.]+)\s*\/\s*([a-z]+)$/i)
+  if (numericPerUnitMatch) {
+    return {
+      value: parseFloat(numericPerUnitMatch[1]),
+      type: numericPerUnitMatch[2].toLowerCase().includes('kg') || numericPerUnitMatch[2].toLowerCase().includes('weight') ? 'per_weight' : 'per_unit',
+      unit: numericPerUnitMatch[2].toLowerCase(),
+      currency: 'USD',
+    }
+  }
+
+  // Try to parse as a simple number (assume percentage if no unit)
+  const numericMatch = rate.match(/^([\d.]+)$/)
+  if (numericMatch) {
+    return {
+      value: parseFloat(numericMatch[1]),
+      type: 'percentage',
+    }
+  }
+
+  // Unknown format
+  console.warn(`[parseDutyRate] Unknown rate format: "${rateString}"`)
+  return { value: 0, type: 'unknown' }
+}
+
+/**
+ * Parse additional duties string
+ * Returns the numeric value if it can be parsed
+ */
+function parseAdditionalDuties(additionalDuties: string | null | undefined): number {
+  if (!additionalDuties || additionalDuties.trim() === '' || additionalDuties.toUpperCase() === 'FREE' || additionalDuties.toUpperCase() === 'NULL') {
+    return 0
+  }
+
+  // Try to extract numeric value
+  const numericMatch = additionalDuties.match(/[\d.]+/)
+  if (numericMatch) {
+    return parseFloat(numericMatch[0])
+  }
+
+  return 0
+}
+
+/**
+ * Calculate duties using hardcoded logic (no AI required)
+ * Replaces calculateDutiesWithGemini for deterministic calculations
+ */
+export function calculateDutiesHardcoded(
+  htsDutyInfo: HtsDutyInfo,
+  productData: {
+    description: string
+    quantity: number
+    unitPrice: number
+    totalPrice: number
+    unitOfMeasure?: string
+    weight?: number
+    weightUnit?: string
+    currency?: string
+    countryOfOrigin?: string
+  },
+  documentData: any
+): {
+  dutyRate: string
+  dutyRateType: string
+  additionalDuties: string | null
+  calculatedDuty: number
+  calculationBreakdown: string
+  currency: string
+  freeTradeAgreement?: string | null
+  ftaBenefit?: number | null
+  isDutyFree?: boolean
+} {
+  // Extract origin and destination countries for FTA checking
+  const originCountry = productData.countryOfOrigin || documentData.shipmentInfo?.originCountry || ''
+  const destinationCountry = documentData.shipmentInfo?.destinationCountry || 'US'
+  const incoterm = documentData.shipmentInfo?.incoterm || documentData.shipmentInfo?.incoterms || ''
+  const currency = productData.currency || documentData.currency || 'USD'
+
+  // Step 1: Check if duty-free
+  if (!htsDutyInfo.selected_rate || 
+      htsDutyInfo.selected_rate.trim().toUpperCase() === 'FREE' ||
+      htsDutyInfo.selected_rate.trim() === '') {
+    return {
+      dutyRate: 'Free',
+      dutyRateType: htsDutyInfo.selected_rate_type || 'general',
+      additionalDuties: null,
+      calculatedDuty: 0,
+      calculationBreakdown: `No duty applies - HTS code ${htsDutyInfo.hts_number} has a "Free" rate or no duty rate specified.`,
+      currency,
+      freeTradeAgreement: null,
+      ftaBenefit: null,
+      isDutyFree: true,
+    }
+  }
+
+  // Step 2: Check for applicable FTA
+  const fta = getApplicableFTA(originCountry, destinationCountry)
+  let rateToUse = htsDutyInfo.selected_rate
+  let rateTypeToUse = htsDutyInfo.selected_rate_type || 'general'
+  
+  // If FTA applies, prefer special rate or "Free" rate
+  if (fta) {
+    if (htsDutyInfo.special_rate_of_duty && 
+        htsDutyInfo.special_rate_of_duty.trim().toUpperCase() !== 'FREE' &&
+        htsDutyInfo.special_rate_of_duty.trim() !== '') {
+      rateToUse = htsDutyInfo.special_rate_of_duty
+      rateTypeToUse = 'special'
+    } else if (htsDutyInfo.special_rate_of_duty?.trim().toUpperCase() === 'FREE') {
+      return {
+        dutyRate: 'Free',
+        dutyRateType: 'special',
+        additionalDuties: null,
+        calculatedDuty: 0,
+        calculationBreakdown: `No duty applies - ${fta} FTA provides "Free" rate for HTS code ${htsDutyInfo.hts_number}.`,
+        currency,
+        freeTradeAgreement: fta,
+        ftaBenefit: 0, // Will calculate below if we had a general rate
+        isDutyFree: true,
+      }
+    }
+  }
+
+  // Step 3: Parse the rate
+  const parsedRate = parseDutyRate(rateToUse)
+  
+  if (parsedRate.type === 'free') {
+    return {
+      dutyRate: 'Free',
+      dutyRateType: rateTypeToUse,
+      additionalDuties: null,
+      calculatedDuty: 0,
+      calculationBreakdown: `No duty applies - Rate is "Free" for HTS code ${htsDutyInfo.hts_number}.`,
+      currency,
+      freeTradeAgreement: fta || null,
+      ftaBenefit: null,
+      isDutyFree: true,
+    }
+  }
+
+  // Step 4: Calculate base duty
+  let baseDuty = 0
+  let calculationSteps: string[] = []
+
+  if (parsedRate.type === 'percentage') {
+    // Percentage rate: apply to total price
+    baseDuty = (parsedRate.value / 100) * productData.totalPrice
+    calculationSteps.push(`Applied ${parsedRate.value}% rate to total price of ${currency} ${productData.totalPrice.toFixed(2)}`)
+    calculationSteps.push(`Base duty = ${currency} ${baseDuty.toFixed(2)}`)
+  } else if (parsedRate.type === 'per_weight') {
+    // Per-weight rate: use weight if available, otherwise estimate or use quantity
+    const weight = productData.weight || 0
+    if (weight > 0) {
+      baseDuty = parsedRate.value * weight
+      calculationSteps.push(`Applied ${rateToUse} rate to weight of ${weight} ${productData.weightUnit || 'kg'}`)
+      calculationSteps.push(`Base duty = ${currency} ${baseDuty.toFixed(2)}`)
+    } else {
+      // Fallback: estimate weight or use quantity
+      baseDuty = parsedRate.value * productData.quantity
+      calculationSteps.push(`Applied ${rateToUse} rate to quantity of ${productData.quantity} ${productData.unitOfMeasure || 'units'} (weight not available)`)
+      calculationSteps.push(`Base duty = ${currency} ${baseDuty.toFixed(2)}`)
+    }
+  } else if (parsedRate.type === 'per_unit') {
+    // Per-unit rate: use quantity
+    baseDuty = parsedRate.value * productData.quantity
+    calculationSteps.push(`Applied ${rateToUse} rate to quantity of ${productData.quantity} ${productData.unitOfMeasure || 'units'}`)
+    calculationSteps.push(`Base duty = ${currency} ${baseDuty.toFixed(2)}`)
+  } else {
+    // Unknown format - try to use as percentage
+    baseDuty = (parsedRate.value / 100) * productData.totalPrice
+    calculationSteps.push(`Applied rate ${rateToUse} as percentage to total price`)
+    calculationSteps.push(`Base duty = ${currency} ${baseDuty.toFixed(2)}`)
+  }
+
+  // Step 5: Add additional duties
+  const additionalDutiesValue = parseAdditionalDuties(htsDutyInfo.additional_duties)
+  let totalDuty = baseDuty + additionalDutiesValue
+  
+  if (additionalDutiesValue > 0) {
+    calculationSteps.push(`Added additional duties: ${currency} ${additionalDutiesValue.toFixed(2)}`)
+    calculationSteps.push(`Total duty = ${currency} ${totalDuty.toFixed(2)}`)
+  }
+
+  // Step 6: Calculate FTA benefit if applicable
+  let ftaBenefit: number | null = null
+  if (fta && htsDutyInfo.general_rate_of_duty && rateTypeToUse === 'special') {
+    // Calculate what duty would be with general rate
+    const generalParsed = parseDutyRate(htsDutyInfo.general_rate_of_duty)
+    let generalDuty = 0
+    
+    if (generalParsed.type === 'percentage') {
+      generalDuty = (generalParsed.value / 100) * productData.totalPrice
+    } else if (generalParsed.type === 'per_weight') {
+      const weight = productData.weight || 0
+      generalDuty = generalParsed.value * (weight > 0 ? weight : productData.quantity)
+    } else if (generalParsed.type === 'per_unit') {
+      generalDuty = generalParsed.value * productData.quantity
+    }
+    
+    ftaBenefit = Math.max(0, generalDuty - totalDuty)
+    if (ftaBenefit > 0) {
+      calculationSteps.push(`${fta} FTA benefit: ${currency} ${ftaBenefit.toFixed(2)} savings vs general rate`)
+    }
+  }
+
+  // Step 7: Build calculation breakdown
+  const breakdownParts = [
+    `HTS Code: ${htsDutyInfo.hts_number}`,
+    `Rate Used: ${rateToUse} (${rateTypeToUse})`,
+    ...calculationSteps,
+  ]
+  
+  if (fta) {
+    breakdownParts.push(`Free Trade Agreement: ${fta} applies between ${originCountry || 'origin'} and ${destinationCountry}`)
+  }
+  
+  if (incoterm) {
+    breakdownParts.push(`Incoterm: ${incoterm} - Buyer responsible for duties (per Incoterms 2020)`)
+  }
+
+  const calculationBreakdown = breakdownParts.join('. ') + '.'
+
+  return {
+    dutyRate: rateToUse,
+    dutyRateType: rateTypeToUse,
+    additionalDuties: htsDutyInfo.additional_duties,
+    calculatedDuty: Math.max(0, totalDuty), // Ensure non-negative
+    calculationBreakdown,
+    currency,
+    freeTradeAgreement: fta || null,
+    ftaBenefit,
+    isDutyFree: false,
+  }
+}
+
